@@ -14,67 +14,44 @@ Functions:
 """
 
 import os
-from urllib.parse import urlparse, parse_qs, urljoin
+import re
+import time
+import random
+from urllib.parse import urlparse, parse_qs
 
 import typer
 import joblib
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from bs4 import BeautifulSoup
+from DrissionPage import ChromiumPage, ChromiumOptions
 
 URL = os.environ["X591URL"]
 
-JS_PATCH = """
-window.addEventListener('beforeunload', function (e) {
-    // Cancel the event
-    e.preventDefault();
-    // Chrome requires returnValue to be set to an empty string
-    e.returnValue = '';
-});
 
-// Override the history object's methods
-window.history.back = function() { console.log('history.back() blocked.'); };
-window.history.forward = function() { console.log('history.forward() blocked.'); };
-window.history.go = function() { console.log('history.go() blocked.'); };
-
-// You can also try to lock down the location object.
-// Note: Overriding `window.location.href` directly is difficult and not recommended.
-// It's better to override the methods that change it.
-window.location.assign = function() { console.log('location.assign() blocked.'); };
-window.location.replace = function() { console.log('location.replace() blocked.'); };
-
-// Disable the timer that the disable-devtools library uses for its checks.
-// This might break other site functionality, but is very effective.
-window.setInterval = function() { console.log('setInterval() blocked by Selenium patch.'); };
-"""
+def create_browser(headless: bool = False) -> ChromiumPage:
+    """Create a DrissionPage browser instance with anti-detection settings."""
+    opts = ChromiumOptions()
+    if headless:
+        opts.headless()
+    opts.set_argument("--disable-blink-features=AutomationControlled")
+    opts.set_argument("--no-first-run")
+    opts.set_argument("--no-default-browser-check")
+    return ChromiumPage(opts)
 
 
-def navigate_to_a_page(browser: webdriver.Chrome, url: str):
+def navigate_to_a_page(page: ChromiumPage, url: str):
     try:
-        browser.get(url)
-        # Bypass disable-devtool
-        browser.execute_script("window.__30f1fb31232ca3e80fba75ceb4253b35__ = true;")
+        page.get(url)
     except Exception as e:
         print(f"Failed to navigate to the page: {e}")
         raise e
 
-    # Second layer of defense
-    browser.execute_script(JS_PATCH)
-    typer.echo("✅ Patch applied successfully!")
-
-    # Wait for the "下一頁" (next page) link to be present
-    # This helps ensure the page content is loaded before we start scraping
+    # Wait for listing items to load
     try:
-        WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.LINK_TEXT, "下一頁")))
-        typer.echo("Next page link found, page content loaded.")
+        page.wait.eles_loaded("css:.item-info-title a", timeout=10)
+        typer.echo("Page content loaded.")
     except Exception:
-        typer.echo("Next page link not found, proceeding anyway (might be a single page result).")
+        typer.echo("Listing items not found, proceeding anyway (might be a single page result).")
 
-    # For debugging purposes
-    # with open("/tmp/ramdisk/tmp.html", "w") as fout:
-    #     _ = fout.write(browser.page_source)
+    time.sleep(random.random() * 2 + 1)
 
 
 def main(output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bool = False):
@@ -83,55 +60,54 @@ def main(output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bo
     except (AttributeError, KeyError) as e:
         print("The URL must have a 'region' query argument!")
         raise e
-    options = webdriver.ChromeOptions()
-    if quiet:
-        options.add_argument("--headless")
 
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-
-    browser = webdriver.Chrome(options=options)
+    page = create_browser(headless=quiet)
     typer.echo("Browser initialized.")
 
     # Navigate to the specified URL
-    navigate_to_a_page(browser, URL)
+    navigate_to_a_page(page, URL)
 
     listings: set[str] = set()
     for i in range(max_pages):
         print(f"Page {i + 1}")
-        soup = BeautifulSoup(browser.page_source, "lxml")
 
-        for item in soup.find_all("div", attrs={"class": "item-info-title"}):
-            link = item.find("a")
-            if link is not None and getattr(link, "attrs", None) is not None:
-                listings.add(link.attrs["href"].split("/")[-1])
-
-        next_page_link = soup.find("a", string="下一頁")
+        # Extract listing IDs from links
+        links = page.eles("css:.item-info-title a")
+        for link in links:
+            href = link.attr("href") or ""
+            match = re.search(r"/(\d+)(?:\.html)?$", href)
+            if match:
+                listings.add(match.group(1))
 
         if i == max_pages - 1:
             typer.echo("Reached maximum pages. Exiting...")
             break
 
-        new_link = str(next_page_link.attrs["href"]).strip()
+        # Find next page link
+        next_page = page.ele("text=下一頁", timeout=3)
 
-        if not next_page_link or new_link in ("", "#"):
+        if not next_page:
             typer.echo("No more pages to scrape. Exiting...")
             break
 
-        new_url = urljoin(browser.current_url, new_link)
-        navigate_to_a_page(browser, new_url)
+        next_href = (next_page.attr("href") or "").strip()
+        if next_href in ("", "#"):
+            typer.echo("No more pages to scrape. Exiting...")
+            break
 
-        # An alternative approach: Click the next page link using Selenium
-        # browser.find_element(By.LINK_TEXT, "下一頁").click()
+        next_page.click()
+        time.sleep(random.random() * 2 + 1)
+
+        # Wait for new page content
+        try:
+            page.wait.eles_loaded("css:.item-info-title a", timeout=10)
+        except Exception:
+            pass
 
     joblib.dump(list(listings), output_path)
     print(f"Done! Collected {len(listings)} entries.")
 
-    # Uncomment to pause before closing the browser
-    # import time
-    # time.sleep(10)
-
-    browser.quit()
+    page.quit()
 
 
 if __name__ == "__main__":

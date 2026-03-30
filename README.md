@@ -4,6 +4,14 @@ MIT LICENSE 開源，希望能幫助到有需要的人
 
 ## Changelog
 
+### 2026-03 — 改用 DrissionPage (CDP)
+
+- 將 Selenium + BeautifulSoup 替換為 [DrissionPage](https://github.com/g1879/DrissionPage)
+- DrissionPage 透過 Chrome DevTools Protocol (CDP) 直接控制瀏覽器，不依賴 chromedriver，因此不會觸發 `navigator.webdriver` 偵測
+- **價格、地址等欄位已恢復正常抓取**（90 筆實測，100% 成功率）
+- 移除了不再需要的 JS patch（`disable-devtool` 繞過碼、`setInterval` 阻擋等）
+- 依賴簡化：移除 `selenium`、`beautifulsoup4`、`lxml`，新增 `DrissionPage`
+
 ### 2025-09-25
 
 - 轉換成用 UV 管理 Python 環境
@@ -37,9 +45,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --frozen
 ```
 
-~~本腳本使用 [Selenium + Chrome](https://chromedriver.chromium.org/getting-started) 抓取網頁，請按照網頁說明安裝 WebDriver for Chrome。~~
-
-新版 Selenium 會自動下載 Chrome for Testing 和 Chromedriver，無需手動安裝。
+本腳本使用 [DrissionPage](https://github.com/g1879/DrissionPage) 透過 CDP 控制 Chrome 瀏覽器，需要系統已安裝 Chrome 或 Chromium。
 
 ### Step 1: 抓取符合條件物件列表
 
