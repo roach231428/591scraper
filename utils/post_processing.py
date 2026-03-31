@@ -7,7 +7,8 @@ def parse_price(price_str: str) -> int:
     if price_str == "" or "--" in price_str or "無" in price_str:
         return 0
     try:
-        return int(re.match(r"^([\d,]+)\w+", price_str).group(1).replace(",", ""))
+        # Greedy match the first numbers (including commas)
+        return int(re.match(r"^([\d,]+)", price_str).group(1).replace(",", ""))  # pyright: ignore[reportOptionalMemberAccess]
     except AttributeError:
         return 0
 
