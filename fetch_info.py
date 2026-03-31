@@ -169,6 +169,7 @@ def main(
         df_new = pd.concat([df_new, df_original], axis=0).reset_index(drop=True)
 
     if output_path is None and data_path is None:
+        # default output path
         output_path = "cache/df_listings.csv"
     elif output_path is None and data_path:
         output_path = data_path
@@ -188,6 +189,11 @@ def main(
         "poster",
         "養寵物",
         "提供設備",
+        # TODO: Restore support for these fields
+        # "格局",
+        # "坪數",
+        # "樓層",
+        # "型態",
         "id",
         "fetched",
         "desc",
