@@ -10,12 +10,6 @@ import typer
 import joblib
 import pandas as pd
 from tqdm import tqdm
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as ec
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -24,103 +18,107 @@ from tenacity import (
     RetryError,
     retry_if_exception_type,
 )
+from DrissionPage import ChromiumPage
 
 from utils.post_processing import adjust_price_, auto_marking_, parse_price
-from collect_list import JS_PATCH
+from collect_list import create_browser
 
 LOGGER = logging.getLogger(__name__)
 
 
-def navigate_to_a_page(browser: webdriver.Chrome, url: str):
-    try:
-        browser.get(url)
-        # Bypass disable-devtool
-        browser.execute_script("window.__30f1fb31232ca3e80fba75ceb4253b35__ = true;")
-    except Exception as e:
-        print(f"Failed to navigate to the page: {e}")
-        raise e
-
-    # Second layer of defense
-    browser.execute_script(JS_PATCH)
-    # typer.echo("✅ Patch applied successfully!")
-
-    # Wait for the "下一頁" (next page) link to be present
-    # This helps ensure the page content is loaded before we start scraping
-    WebDriverWait(browser, 10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "div.title")))
-    # typer.echo("Title found, page content loaded.")
-
-    time.sleep(random.random() * 5 + 1)
-
-    # For debugging purposes
-    # with open("/tmp/ramdisk/tmp.html", "w") as fout:
-    #     _ = fout.write(browser.page_source)
+class PageLoadError(Exception):
+    pass
 
 
 class NotExistException(Exception):
     pass
 
 
-def get_attributes(soup):
-    result = {}
+def navigate_to_a_page(page: ChromiumPage, url: str):
     try:
-        result["養寵物"] = "No" if "不可養寵物" in soup.select_one("section.service").text else "Yes"
-    except AttributeError:
+        page.get(url)
+    except Exception as e:
+        print(f"Failed to navigate to the page: {e}")
+        raise e
+
+    # Wait for the title to be visible
+    page.wait.eles_loaded("css:div.title", timeout=10)
+    time.sleep(random.random() * 3 + 1)
+
+
+def get_attributes(page: ChromiumPage):
+    result = {}
+
+    # 養寵物
+    service_el = page.ele("css:section.service", timeout=2)
+    if service_el:
+        result["養寵物"] = "No" if "不可養寵物" in (service_el.text or "") else "Yes"
+    else:
         result["養寵物"] = None
-    contents = soup.select_one("div.house-detail-content-left div.content").children
-    for item in contents:
-        try:
-            name = item.select_one("div span.label").text
-            if name in ("租金含", "車位費", "管理費"):
-                result[name] = name = item.select_one("div div.text").text.strip()
-        except AttributeError as e:
-            print(e)
-            continue
-    service_list = soup.select_one("div.service-facility").select("dl")
-    services = []
-    for item in service_list:
-        if "del" in item["class"]:
-            continue
-        services.append(item.select_one("dd").text.strip())
-    result["提供設備"] = ", ".join(services)
-    # attributes = soup.select_one("div.pattern").find_all("span")
-    # for i, key in enumerate(("格局", "坪數", "樓層", "型態")):
-    #     result[key] = attributes[i * 2].text.strip()
+
+    # 租金含、車位費、管理費
+    for label_name in ("租金含", "車位費", "管理費"):
+        label_el = page.ele(f"text={label_name}", timeout=1)
+        if label_el:
+            parent = label_el.parent()
+            text_el = parent.ele("css:div.text", timeout=1) if parent else None
+            result[label_name] = text_el.text.strip() if text_el else ""
+        else:
+            result[label_name] = ""
+
+    # 提供設備
+    facility_el = page.ele("css:div.service-facility", timeout=2)
+    if facility_el:
+        items = facility_el.eles("css:dl:not(.del) dd")
+        result["提供設備"] = ", ".join(item.text.strip() for item in items if item.text)
+    else:
+        result["提供設備"] = ""
+
     return result
 
 
 @retry(
     reraise=False,
-    retry=retry_if_exception_type(TimeoutException),
+    retry=retry_if_exception_type(PageLoadError),
     stop=stop_after_attempt(2),
     wait=wait_fixed(1),
     before_sleep=before_sleep_log(LOGGER, logging.INFO),
 )
-def get_page(browser: webdriver.Chrome, listing_id):
-    navigate_to_a_page(browser, f"https://rent.591.com.tw/home/{listing_id}".strip())
-    soup = BeautifulSoup(browser.page_source, "lxml")
-    title = soup.select_one("div.title")
-    if title and "不存在" in str(title.text):
+def get_page(page: ChromiumPage, listing_id):
+    navigate_to_a_page(page, f"https://rent.591.com.tw/home/{listing_id}".strip())
+    title_el = page.ele("css:div.title", timeout=5)
+    if title_el and "不存在" in (title_el.text or ""):
         raise NotExistException()
-    return soup
 
 
-def get_listing_info(browser: webdriver.Chrome, listing_id: str):
+def get_listing_info(page: ChromiumPage, listing_id: str):
     try:
-        soup = get_page(browser, listing_id)
+        get_page(page, listing_id)
     except RetryError:
-        # Still attempt to fetch the page content
         typer.echo("RetryError encountered... Trying to parse whatever is on the page.")
-        soup = BeautifulSoup(browser.page_source, "lxml")
+
     result: dict[str, Any] = {"id": listing_id}
-    result["title"] = soup.select_one(".title h1").text
-    result["addr"] = soup.select_one("div.address div").text.strip() if soup.select_one("div.address div") else ""
-    complex = soup.select_one("div.address p a")
-    if complex:
-        result["社區"] = complex.text.strip()
-    result["price"] = parse_price(soup.select_one("div.house-price").text)
-    result["desc"] = soup.select_one("div.house-condition-content").text.strip()
-    result["poster"] = re.sub(r"\s+", " ", soup.select_one("p.base-info-pc").text.strip())
-    result.update(get_attributes(soup))
+
+    h1 = page.ele("css:.title h1", timeout=3)
+    result["title"] = h1.text.strip() if h1 else ""
+
+    addr_el = page.ele("css:div.address div", timeout=3)
+    result["addr"] = addr_el.text.strip() if addr_el else ""
+
+    complex_el = page.ele("css:div.address p a", timeout=2)
+    if complex_el:
+        result["社區"] = complex_el.text.strip()
+
+    price_el = page.ele("css:div.house-price", timeout=3)
+    result["price"] = parse_price(price_el.text if price_el else "")
+
+    desc_el = page.ele("css:div.house-condition-content", timeout=3)
+    result["desc"] = desc_el.text.strip() if desc_el else ""
+
+    poster_el = page.ele("css:p.base-info-pc", timeout=3)
+    result["poster"] = re.sub(r"\s+", " ", poster_el.text.strip()) if poster_el else ""
+
+    result.update(get_attributes(page))
     return result
 
 
@@ -131,6 +129,8 @@ def main(
     limit: int = -1,
     headless: bool = False,
 ):
+    # joblib is used here to maintain compatibility with the existing
+    # collect_list.py output format (.jbl files).
     listing_ids = joblib.load(source_path)
     df_original: Optional[pd.DataFrame] = None
     if data_path:
@@ -146,21 +146,12 @@ def main(
 
     print(f"Collecting {len(listing_ids)} entries...")
 
-    options = webdriver.ChromeOptions()
-    if headless:
-        options.add_argument("--headless")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    # Block loading of all images on the web page
-    prefs = {"profile.managed_default_content_settings.images": 2}
-    options.add_experimental_option("prefs", prefs)
-
-    browser = webdriver.Chrome(options=options)
+    page = create_browser(headless=headless)
 
     data = []
     for id_ in tqdm(listing_ids, ncols=100):
         try:
-            data.append(get_listing_info(browser, id_))
+            data.append(get_listing_info(page, id_))
         except NotExistException:
             LOGGER.warning(f"Does not exist: {id_}")
             pass
@@ -198,6 +189,7 @@ def main(
         "poster",
         "養寵物",
         "提供設備",
+        # TODO: Restore support for these fields
         # "格局",
         # "坪數",
         # "樓層",

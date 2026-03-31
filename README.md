@@ -2,7 +2,28 @@
 
 MIT LICENSE 開源，希望能幫助到有需要的人
 
+> ⚠️ **授權聲明**：本專案的 MIT 授權僅涵蓋本專案自身的程式碼。本專案依賴 [DrissionPage](https://github.com/g1879/DrissionPage)，該套件採用**自訂非商業授權**，未經原作者授權不得用於商業用途。若您有商業使用需求，請先向 DrissionPage 原作者取得授權。
+
+_注意：目前 591 租房頁面還沒有像房屋買賣頁面一樣將價格用圖片展示。**如果 591 租房頁面也開始用圖片展示價格，會需要在這個腳本上添加 OCR 功能，才能正常抓取價格**。_
+
 ## Changelog
+
+### 2026-03-31 
+
+[MrFrogIsMe](https://github.com/MrFrogIsMe) 的貢獻 ([#5](https://github.com/ceshine/591scraper/pull/5)): 
+
+- 將 Selenium + BeautifulSoup 替換為 [DrissionPage](https://github.com/g1879/DrissionPage)
+- DrissionPage 透過 Chrome DevTools Protocol (CDP) 直接控制瀏覽器，不依賴 chromedriver，因此不會觸發 `navigator.webdriver` 偵測
+- **價格、地址等欄位已恢復正常抓取**（90 筆實測，100% 成功率）
+- 移除了不再需要的 JS patch（`disable-devtool` 繞過碼、`setInterval` 阻擋等）
+- 依賴簡化：移除 `selenium`、`beautifulsoup4`、`lxml`，新增 `DrissionPage`
+
+Ceshine 的補充:
+
+- 在 README 中新增授權聲明: 提醒使用者，本專案依賴的 DrissonPage 是非商業授權
+- 更新 uv.lock
+- 將 pyproject.toml 的版本提升爲 0.2.0
+- 修正 `parse_price` 在新版網頁上價格會少提取一個零的問題
 
 ### 2025-09-25
 
@@ -37,9 +58,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync --frozen
 ```
 
-~~本腳本使用 [Selenium + Chrome](https://chromedriver.chromium.org/getting-started) 抓取網頁，請按照網頁說明安裝 WebDriver for Chrome。~~
-
-新版 Selenium 會自動下載 Chrome for Testing 和 Chromedriver，無需手動安裝。
+本腳本使用 [DrissionPage](https://github.com/g1879/DrissionPage) 透過 CDP 控制 Chrome 瀏覽器，需要系統已安裝 Chrome 或 Chromium。
 
 ### Step 1: 抓取符合條件物件列表
 
