@@ -20,7 +20,7 @@ _注意：目前 591 租房頁面還沒有像房屋買賣頁面一樣將價格�
 
 Ceshine 的補充:
 
-- 在 README 中新增授權聲明: 提醒使用者，本專案依賴的 DrissonPage 是非商業授權。
+- 在 README 中新增授權聲明: 提醒使用者，本專案依賴的 DrissonPage 是非商業授權
 - 更新 uv.lock
 - 將 pyproject.toml 的版本提升爲 0.2.0
 - 修正 `parse_price` 在新版網頁上價格會少提取一個零的問題
