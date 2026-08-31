@@ -113,14 +113,6 @@ def main(output_path: str = "cache/sale_listings.jbl", max_pages: int = 10, quie
             data_id = item.attr("data-id")
             if data_id and data_id.isdigit():
                 listings.add(data_id)
-            else:
-                # Fallback: extract from href
-                link = item.ele("css:a[href*='house/detail']")
-                if link:
-                    href = link.attr("href") or ""
-                    listing_id = extract_listing_id_from_href(href)
-                    if listing_id:
-                        listings.add(listing_id)
 
         print(f"  Found {len(listings)} unique IDs so far")
 
