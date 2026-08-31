@@ -8,7 +8,15 @@ _注意：目前 591 租房頁面還沒有像房屋買賣頁面一樣將價格�
 
 ## Changelog
 
-### 2026-03-31 
+### 2026-08-31
+
+- 新增房屋買賣資料抓取功能
+  - 新增 `collect_sale_list.py`：根據提供的 591 房屋買賣搜尋 URL 抓取物件列表
+  - 新增 `fetch_sale_info.py`：抓取房屋買賣物件的詳細資訊
+  - 支援跳過已抓取過的物件，避免重複抓取
+  - 輸出格式與租房腳本類似，結果預設存到 `cache/df_sale_listings.csv`
+
+### 2026-03-31
 
 [MrFrogIsMe](https://github.com/MrFrogIsMe) 的貢獻 ([#5](https://github.com/ceshine/591scraper/pull/5)): 
 
