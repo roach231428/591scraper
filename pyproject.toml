@@ -9,6 +9,7 @@ dependencies = [
     "requests>=2.32.5",
     "tenacity>=9.1.2",
     "DrissionPage>=4.1.0",
+    "flet>=0.28.0",
 ]
 requires-python = ">=3.9"
 

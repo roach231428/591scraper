@@ -115,7 +115,8 @@ def main(
     data_path: Optional[str] = None,
     output_path: Optional[str] = None,
     limit: int = -1,
-    headless: bool = False,
+    quiet: bool = False,
+    use_tqdm: bool = True,
 ):
     # joblib is used here to maintain compatibility with the existing
     # collect_list.py output format (.jbl files).
@@ -134,15 +135,19 @@ def main(
 
     print(f"Collecting {len(listing_ids)} entries...")
 
-    page = create_browser(headless=headless)
+    page = create_browser(headless=quiet)
 
     data = []
-    for id_ in tqdm(listing_ids, ncols=100):
+    total = len(listing_ids)
+    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
+    for idx, id_ in enumerate(iterator, start=1):
         try:
             data.append(get_listing_info(page, id_))
         except NotExistException:
             LOGGER.warning(f"Does not exist: {id_}")
             pass
+        print(f"Fetch progress: {idx}/{total}")
+        LOGGER.info(f"Fetch progress: {idx}/{total}")
         time.sleep(random.random() * 5)
 
     df_new = pd.DataFrame(data)
