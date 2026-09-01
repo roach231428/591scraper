@@ -177,7 +177,8 @@ def main(
     data_path: Optional[str] = None,
     output_path: Optional[str] = None,
     limit: int = -1,
-    headless: bool = False,
+    quiet: bool = False,
+    use_tqdm: bool = True,
 ):
     """Main function to fetch sale listing information.
     
@@ -186,7 +187,8 @@ def main(
         data_path: Path to existing CSV data to merge with
         output_path: Path to save the output CSV
         limit: Maximum number of listings to fetch (-1 for all)
-        headless: Whether to run in headless mode
+        quiet: Whether to run in headless mode
+        use_tqdm: Whether to display a tqdm progress bar (useful when running directly in terminal)
     """
     # joblib is used here to maintain compatibility with the collect_sale_list.py output format
     listing_ids = joblib.load(source_path)
@@ -204,15 +206,19 @@ def main(
 
     print(f"Collecting {len(listing_ids)} entries...")
 
-    page = create_browser(headless=headless)
+    page = create_browser(headless=quiet)
 
     data = []
-    for id_ in tqdm(listing_ids, ncols=100):
+    total = len(listing_ids)
+    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
+    for idx, id_ in enumerate(iterator, start=1):
         try:
             data.append(get_listing_info(page, id_))
         except NotExistException:
             LOGGER.warning(f"Does not exist: {id_}")
-            pass
+            # continue without adding
+        print(f"Fetch progress: {idx}/{total}")
+        LOGGER.info(f"Fetch progress: {idx}/{total}")
         time.sleep(random.random() + 1)
 
     df_new = pd.DataFrame(data)
