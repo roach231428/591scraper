@@ -28,7 +28,8 @@ from tqdm import tqdm
 from tenacity import RetryError
 from DrissionPage import ChromiumPage
 
-from collect_sale_list import create_browser
+from utils.browser import create_browser, navigate_to_a_page
+from utils.extractor import extract_data_by_box_title, extract_list_from_box
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,19 +40,6 @@ class PageLoadError(Exception):
 
 class NotExistException(Exception):
     pass
-
-
-def navigate_to_a_page(page: ChromiumPage, url: str):
-    """Navigate to a page and wait for content to load."""
-    try:
-        page.get(url)
-    except Exception as e:
-        print(f"Failed to navigate to the page: {e}")
-        raise e
-
-    # Just wait for page to load with a simple sleep
-    # This is more reliable than waiting for specific elements
-    time.sleep(random.random() + 1)
 
 
 def parse_price(price_str: str) -> Optional[int]:
@@ -84,155 +72,8 @@ def get_page(page: ChromiumPage, listing_id: str):
     title_el = page.ele("css:h1.detail-title-box span.detail-title-text", timeout=3)
     if not title_el:
         # If title not found, check for error indicators in the page title
-        page_title = page.title.lower()
         if "不存在" in page.title or "找不到" in page.title or "失效" in page.title:
             raise NotExistException()
-
-
-def extract_house_data(page: ChromiumPage, box_title: str) -> dict:
-    """Extract house data from a detail-house-box by title keyword.
-
-    This function searches all detail-house-box elements and finds the one
-    whose title (h3.detail-house-name) contains the given box_title keyword.
-    
-    Args:
-        page: DrissionPage page instance
-        box_title: Title keyword to search for (e.g., "房屋資料", "坪數說明")
-        
-    Returns:
-        Dictionary of extracted data
-    """
-    result = {}
-    try:
-        # Get all house boxes first (fast operation)
-        all_boxes = page.eles("css:.detail-house-box")
-        if not all_boxes:
-            return result
-        
-        # Print all box titles for debugging
-        box_titles = []
-        for i, box in enumerate(all_boxes):
-            h3 = box.ele("css:h3.detail-house-name")
-            title = h3.text.strip().replace("\n", "") if h3 else "No title"
-            box_titles.append(f"{i}:'{title}'")
-        LOGGER.info(f"Available boxes: {', '.join(box_titles)}")
-        
-        # Find the box by title (more reliable than nth-of-type)
-        # Note: 591 page may have spaces and newlines in titles (e.g., "房\n屋資料" instead of "房屋資料")
-        # So we need to remove all whitespace characters before comparing
-        house_box = None
-        for box in all_boxes:
-            h3 = box.ele("css:h3.detail-house-name")
-            if h3:
-                # Remove all whitespace (spaces, newlines, etc.) from the title for comparison
-                title_normalized = re.sub(r'\s+', '', h3.text or "")
-                if box_title in title_normalized:
-                    house_box = box
-                    break
-        
-        if not house_box:
-            # Only process boxes that match the expected title by name.
-            LOGGER.warning(f"Box '{box_title}' not found in any detail-house-box")
-            return result
-        
-        items = house_box.eles("css:.detail-house-item")
-        LOGGER.debug(f"Found {len(items)} items in box '{box_title}'")
-        
-        for item in items:
-            key_el = item.ele("css:.detail-house-key", timeout=0.1)
-            value_el = item.ele("css:.detail-house-value", timeout=0.1)
-            if key_el and value_el:
-                key = key_el.text.strip().replace("\n", "").replace("\r", "")
-                try:
-                    span_el = value_el.ele("css:span", timeout=0.1)
-                    value = span_el.text.strip() if span_el else value_el.text.strip()
-                except Exception:
-                    # If timeout or any error, just use the value_el text directly
-                    value = value_el.text.strip()
-                value = value.replace("\n", "").replace("\r", "")
-                result[key] = value
-    except Exception as e:
-        LOGGER.warning(f"Error extracting house data for '{box_title}': {e}")
-    
-    return result
-
-
-def extract_living_functions(page: ChromiumPage) -> str:
-    """Extract living functions (生活機能) from the page.
-    
-    Returns:
-        Comma-separated string of facility names
-    """
-    functions = []
-    try:
-        all_boxes = page.eles("css:.detail-house-box")
-        if not all_boxes:
-            return ""
-        
-        # Find the box with "生活機能" title
-        func_box = None
-        for box in all_boxes:
-            h3 = box.ele("css:h3.detail-house-name")
-            if h3:
-                title = re.sub(r'\s+', '', h3.text or "")
-                if "生活機能" in title:
-                    func_box = box
-                    break
-        
-        if not func_box:
-            return ""
-        
-        items = func_box.eles("css:.detail-house-item")
-        for item in items:
-            life_el = item.ele("css:.detail-house-life")
-            if life_el:
-                # Get text and only keep the first part before space
-                text = life_el.text.strip()
-                # Split by space and take only the first part
-                text = text.split(' ')[0] if text else ""
-                functions.append(text)
-    except Exception as e:
-        LOGGER.warning(f"Error extracting living functions: {e}")
-    
-    return "，".join(functions) if functions else ""
-
-
-def extract_nearby_transportation(page: ChromiumPage) -> str:
-    """Extract nearby transportation (附近交通) from the page.
-
-    Returns:
-        Comma-separated string of transportation options
-    """
-    transportation = []
-    try:
-        all_boxes = page.eles("css:.detail-house-box")
-        if not all_boxes:
-            return ""
-
-        # Find the box with "附近交通" title
-        trans_box = None
-        for box in all_boxes:
-            h3 = box.ele("css:h3.detail-house-name")
-            if h3:
-                title = re.sub(r'\s+', '', h3.text or "")
-                if "附近交通" in title:
-                    trans_box = box
-                    break
-
-        if not trans_box:
-            return ""
-
-        items = trans_box.eles("css:.detail-house-item")
-        for item in items:
-            value_el = item.ele("css:.detail-house-value")
-            if value_el:
-                text = value_el.text.strip()
-                text = text.split(' ')[0] if text else ""
-                transportation.append(text)
-    except Exception as e:
-        LOGGER.warning(f"Error extracting nearby transportation: {e}")
-    
-    return "，".join(transportation) if transportation else ""
 
 
 def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
@@ -303,18 +144,18 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
     result["樓層"] = floor_el.text.strip() if floor_el else ""
 
     # 房屋資料 (現況, 型態, 裝潢程度, 管理費, 車位, 公設比等)
-    house_data = extract_house_data(page, "房屋資料")
+    house_data = extract_data_by_box_title(page, "房屋資料")
     result.update(house_data)
 
     # 坪數說明 (主建物, 附屬建物, 共有部分, 總坪數)
-    area_data = extract_house_data(page, "坪數說明")
+    area_data = extract_data_by_box_title(page, "坪數說明")
     result.update(area_data)
 
     # 生活機能
-    result["生活機能"] = extract_living_functions(page)
+    result["生活機能"] = extract_list_from_box(page, "生活機能", ".detail-house-life")
 
     # 附近交通
-    result["附近交通"] = extract_nearby_transportation(page)
+    result["附近交通"] = extract_list_from_box(page, "附近交通", ".detail-house-value")
 
     # 仲介資訊
     agent_el = page.ele("css:.pc-agent-name")

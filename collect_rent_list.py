@@ -15,48 +15,49 @@ Functions:
 
 import os
 import re
-import time
 import random
+import time
 from urllib.parse import urlparse, parse_qs
 
 import typer
 import joblib
-from DrissionPage import ChromiumPage, ChromiumOptions
+from DrissionPage import ChromiumPage
 
-URL = os.environ["X591URL"]
+from utils.browser import create_browser, navigate_to_a_page
+from utils.extractor import extract_id_from_href
+from utils.pagination import wait_for_page_content
 
-
-def create_browser(headless: bool = False) -> ChromiumPage:
-    """Create a DrissionPage browser instance with anti-detection settings."""
-    opts = ChromiumOptions()
-    if headless:
-        opts.headless()
-    opts.set_argument("--disable-blink-features=AutomationControlled")
-    opts.set_argument("--no-first-run")
-    opts.set_argument("--no-default-browser-check")
-    return ChromiumPage(opts)
+URL = os.environ.get("X591URL", "")
 
 
-def navigate_to_a_page(page: ChromiumPage, url: str):
+def extract_ids_from_links(page: ChromiumPage) -> set[str]:
+    """Extract listing IDs from links on the page.
+    
+    Args:
+        page: DrissionPage page instance.
+        
+    Returns:
+        Set of listing IDs extracted from the page.
+    """
+    listings: set[str] = set()
+    links = page.eles("css:.item-info-title a")
+    for link in links:
+        href = link.attr("href") or ""
+        listing_id = extract_id_from_href(href, pattern="default")
+        if listing_id:
+            listings.add(listing_id)
+    return listings
+
+
+def main(url: str = URL, output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bool = False):
+    if not url:
+        print("Error: URL is not set!")
+        print("Example: export X591URL='https://rent.591.com.tw/...'")
+        print("Or use --url parameter: python collect_rent_list.py --url 'https://rent.591.com.tw/...'")
+        raise ValueError("URL not set")
+    
     try:
-        page.get(url)
-    except Exception as e:
-        print(f"Failed to navigate to the page: {e}")
-        raise e
-
-    # Wait for listing items to load
-    try:
-        page.wait.eles_loaded("css:.item-info-title a", timeout=10)
-        typer.echo("Page content loaded.")
-    except Exception:
-        typer.echo("Listing items not found, proceeding anyway (might be a single page result).")
-
-    time.sleep(random.random() * 2 + 1)
-
-
-def main(output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bool = False):
-    try:
-        region = parse_qs(urlparse(URL).query)["region"][0]
+        region = parse_qs(urlparse(url).query)["region"][0]
     except (AttributeError, KeyError) as e:
         print("The URL must have a 'region' query argument!")
         raise e
@@ -65,19 +66,14 @@ def main(output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bo
     typer.echo("Browser initialized.")
 
     # Navigate to the specified URL
-    navigate_to_a_page(page, URL)
+    navigate_to_a_page(page, url, wait_selector=".item-info-title a", timeout=10)
 
     listings: set[str] = set()
     for i in range(max_pages):
         print(f"Page {i + 1}")
 
         # Extract listing IDs from links
-        links = page.eles("css:.item-info-title a")
-        for link in links:
-            href = link.attr("href") or ""
-            match = re.search(r"/(\d+)(?:\.html)?$", href)
-            if match:
-                listings.add(match.group(1))
+        listings.update(extract_ids_from_links(page))
 
         if i == max_pages - 1:
             typer.echo("Reached maximum pages. Exiting...")
@@ -99,10 +95,7 @@ def main(output_path: str = "cache/listings.jbl", max_pages: int = 10, quiet: bo
         time.sleep(random.random() * 2 + 1)
 
         # Wait for new page content
-        try:
-            page.wait.eles_loaded("css:.item-info-title a", timeout=10)
-        except Exception:
-            pass
+        wait_for_page_content(page, ".item-info-title a", timeout=10)
 
     joblib.dump(list(listings), output_path)
     print(f"Done! Collected {len(listings)} entries.")

@@ -21,7 +21,7 @@ from tenacity import (
 from DrissionPage import ChromiumPage
 
 from utils.post_processing import adjust_price_, auto_marking_, parse_price
-from collect_list import create_browser
+from utils.browser import create_browser, navigate_to_a_page
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,18 +32,6 @@ class PageLoadError(Exception):
 
 class NotExistException(Exception):
     pass
-
-
-def navigate_to_a_page(page: ChromiumPage, url: str):
-    try:
-        page.get(url)
-    except Exception as e:
-        print(f"Failed to navigate to the page: {e}")
-        raise e
-
-    # Wait for the title to be visible
-    page.wait.eles_loaded("css:div.title", timeout=10)
-    time.sleep(random.random() * 3 + 1)
 
 
 def get_attributes(page: ChromiumPage):
@@ -201,6 +189,8 @@ def main(
     print(df_new.drop("desc", axis=1).sample(min(df_new.shape[0], 10)))
     df_new[column_ordering].to_csv(output_path, index=False)
     print("Finished!")
+
+    page.quit()
 
 
 if __name__ == "__main__":
