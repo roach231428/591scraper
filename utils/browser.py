@@ -50,6 +50,4 @@ def navigate_to_a_page(page: ChromiumPage, url: str, wait_selector: str = "", ti
         except Exception:
             print(f"Expected content ({wait_selector}) not found, proceeding anyway.")
 
-    # Wait for the title to be visible
-    page.wait.eles_loaded("css:div.title", timeout=10)
     time.sleep(random.random() + 1)

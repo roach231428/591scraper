@@ -73,7 +73,7 @@ def get_attributes(page: ChromiumPage):
     before_sleep=before_sleep_log(LOGGER, logging.INFO),
 )
 def get_page(page: ChromiumPage, listing_id):
-    navigate_to_a_page(page, f"https://rent.591.com.tw/home/{listing_id}".strip())
+    navigate_to_a_page(page, f"https://rent.591.com.tw/home/{listing_id}".strip(), wait_selector="div.title")
     title_el = page.ele("css:div.title", timeout=5)
     if title_el and "不存在" in (title_el.text or ""):
         raise NotExistException()
