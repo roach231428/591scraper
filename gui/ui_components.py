@@ -20,7 +20,7 @@ from gui.config import ACCENT_ORANGE, ACCENT_RED, SUCCESS_GREEN, MODES
 class ModeDropdown(ft.Container):
     """Mode selection dropdown."""
 
-    def __init__(self, on_change=None):
+    def __init__(self, on_select=None):
         self.dropdown = ft.Dropdown(
             label="模式選擇",
             options=[ft.dropdown.Option(k) for k in MODES.keys()],
@@ -32,9 +32,9 @@ class ModeDropdown(ft.Container):
         )
         super().__init__(
             content=self.dropdown,
-            padding=ft.padding.only(left=20, right=20, bottom=12),
+            padding=ft.Padding.only(left=20, right=20, bottom=12),
         )
-        self.dropdown.on_change = on_change
+        self.dropdown.on_select = on_select
 
     @property
     def value(self):
@@ -65,7 +65,7 @@ class UrlField(ft.Container):
         )
         super().__init__(
             content=self.field,
-            padding=ft.padding.only(left=20, right=20, bottom=12),
+            padding=ft.Padding.only(left=20, right=20, bottom=12),
         )
 
     @property
@@ -142,7 +142,7 @@ class PathField(ft.Container):
         )
         super().__init__(
             content=self.field,
-            padding=ft.padding.only(left=20, right=20, bottom=12),
+            padding=ft.Padding.only(left=20, right=20, bottom=12),
             expand=True,
         )
 
@@ -175,7 +175,7 @@ class QuietCheckbox(ft.Container):
         )
         super().__init__(
             content=self.checkbox,
-            padding=ft.padding.only(left=20, right=20, bottom=20),
+            padding=ft.Padding.only(left=20, right=20, bottom=20),
         )
 
     @property
@@ -240,7 +240,7 @@ class StatusIndicator(ft.Container):
 
         super().__init__(
             content=content,
-            padding=ft.padding.only(left=20, right=20, bottom=12),
+            padding=ft.Padding.only(left=20, right=20, bottom=12),
         )
 
     def update_status(self, status: str, progress: Optional[float] = None):
@@ -287,34 +287,52 @@ class ActionButtons(ft.Row):
 
     def __init__(self, on_start=None, on_stop=None, on_open_result=None):
         self.start_button = ft.ElevatedButton(
-            text="開始執行",
-            icon=ft.Icons.PLAY_ARROW,
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.PLAY_ARROW, size=18),
+                    ft.Container(width=8),
+                    ft.Text("開始執行"),
+                ],
+                spacing=0,
+            ),
             bgcolor=ACCENT_ORANGE,
             color=ft.Colors.WHITE,
             style=ft.ButtonStyle(
                 shadow_color=ft.Colors.TRANSPARENT,
-                padding=ft.padding.only(left=24, right=24, top=12, bottom=12),
+                padding=ft.Padding.only(left=24, right=24, top=12, bottom=12),
                 shape=ft.RoundedRectangleBorder(radius=4),
             ),
         )
         self.stop_button = ft.ElevatedButton(
-            text="停止",
-            icon=ft.Icons.STOP,
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.STOP, size=18),
+                    ft.Container(width=8),
+                    ft.Text("停止"),
+                ],
+                spacing=0,
+            ),
             disabled=True,
             bgcolor=ACCENT_RED,
             color=ft.Colors.WHITE,
             style=ft.ButtonStyle(
                 shadow_color=ft.Colors.TRANSPARENT,
-                padding=ft.padding.only(left=24, right=24, top=12, bottom=12),
+                padding=ft.Padding.only(left=24, right=24, top=12, bottom=12),
                 shape=ft.RoundedRectangleBorder(radius=4),
             ),
         )
         self.open_result_button = ft.TextButton(
-            text="開啟結果檔案",
-            icon=ft.Icons.FOLDER_OPEN,
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.FOLDER_OPEN, size=18),
+                    ft.Container(width=8),
+                    ft.Text("開啟結果檔案"),
+                ],
+                spacing=0,
+            ),
             disabled=True,
             style=ft.ButtonStyle(
-                padding=ft.padding.only(left=16, right=16, top=12, bottom=12),
+                padding=ft.Padding.only(left=16, right=16, top=12, bottom=12),
                 color=None,
             ),
         )
@@ -353,7 +371,7 @@ class NotificationHelper:
     def _show_dialog(self, title: str, message: str, icon: ft.Icons, color: str):
         """Show a notification dialog."""
         def close_dialog(e):
-            self.page.close(self._current_dialog)
+            self.page.pop_dialog()
 
         self._current_dialog = ft.AlertDialog(
             title=ft.Row(
@@ -370,7 +388,7 @@ class NotificationHelper:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.open(self._current_dialog)
+        self.page.show_dialog(self._current_dialog)
 
     def show_success(self, title: str, message: str):
         """Show success notification."""
@@ -392,7 +410,7 @@ class NotificationHelper:
             content_controls: List of Flet controls to display as content.
         """
         def close_dialog(e):
-            self.page.close(self._current_dialog)
+            self.page.pop_dialog()
 
         self._current_dialog = ft.AlertDialog(
             title=ft.Text(title),
@@ -401,4 +419,4 @@ class NotificationHelper:
                 ft.TextButton("確定", on_click=close_dialog),
             ],
         )
-        self.page.open(self._current_dialog)
+        self.page.show_dialog(self._current_dialog)

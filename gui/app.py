@@ -30,7 +30,7 @@ from gui.config import ThemeManager, MODES
 from gui.logger import setup_logger, LogConsoleManager
 from gui.scraper_engine import ScraperEngine
 from gui.ui_components import NotificationHelper
-from gui.main_layout import Header, ConfigPanel, ExecutionPanel
+from gui.main_layout import MainLayout, ConfigPanel, ExecutionPanel
 
 
 def get_base_path() -> Path:
@@ -39,7 +39,7 @@ def get_base_path() -> Path:
     For PyInstaller bundled apps, sys._MEIPASS points to the temp directory
     where the app is extracted. We want to use the current working directory
     instead so that relative paths (like cache/) work correctly.
-    
+
     Returns the project root directory (parent of gui/).
     """
     if getattr(sys, "frozen", False):
@@ -65,7 +65,10 @@ class ScraperApp:
 
     def _init_theme(self):
         """Initialize theme manager."""
-        self.theme_manager = ThemeManager(initial_theme="system")
+        self.theme_manager = ThemeManager(
+            self.page,
+            initial_theme="system",
+        )
 
     def _init_logger(self):
         """Initialize logging infrastructure."""
@@ -100,10 +103,12 @@ class ScraperApp:
             on_open_result=self._on_open_result
         )
 
-        # Header
-        self.header = Header(
+        # Main layout - combines header, config panel, and execution panel
+        self.main_layout = MainLayout(
             theme_manager=self.theme_manager,
-            on_theme_change=self._on_theme_change
+            config_panel=self.config_panel,
+            execution_panel=self.execution_panel,
+            on_theme_change=self._on_theme_change,
         )
 
     def _setup_page(self):
@@ -111,44 +116,128 @@ class ScraperApp:
         self.page.title = "591 房產爬蟲工具"
         self.page.window.width = 1200
         self.page.window.height = 800
-        self.page.padding = ft.padding.only(top=0, left=0, right=0, bottom=0)
+        self.page.padding = ft.Padding.only(top=0, left=0, right=0, bottom=0)
         self.page.theme_mode = self.theme_manager.get_theme_mode()
         self.page.theme = None
         self.page.bgcolor = self.theme_manager.get_colors()["bg_primary"]
 
-        # Build main layout
-        colors = self.theme_manager.get_colors()
-
-        main_layout = ft.Column(
-            [
-                self.header,
-                ft.Row(
-                    [
-                        ft.Container(
-                            content=self.config_panel.content,
-                            width=380,
-                            border=ft.border.only(
-                                right=ft.border.BorderSide(1, colors["border_subtle"])
-                            ),
-                            bgcolor=colors["bg_primary"],
-                        ),
-                        ft.Container(
-                            content=self.execution_panel.content,
-                            expand=True,
-                        ),
-                    ],
-                    expand=True,
-                    spacing=0,
-                ),
-            ],
-            expand=True,
-            spacing=0,
-        )
-
-        self.page.add(main_layout)
+        # Add main layout to page
+        self.page.add(self.main_layout)
 
         # Start log flushing
         self.log_console.start_flush_loop()
+
+    # ==========================================================
+    # Background Worker - runs in background thread
+    # ==========================================================
+
+    def _create_worker(self, config: dict):
+        """Create a background worker function for running the scraper.
+
+        This follows the pattern from the example where worker() runs in a background thread
+        and uses page.run_thread() to update UI elements.
+
+        Args:
+            config: Configuration dictionary with scraper settings.
+
+        Returns:
+            A worker function suitable for page.run_thread().
+        """
+        def worker():
+            try:
+                self._log(f"開始執行 - 模式: {config['mode']}")
+                self._log(f"URL: {config['url']}")
+                self._log(f"最大頁數: {config['max_pages']}")
+                self._log(f"靜默模式: {'是' if config['quiet'] else '否'}")
+
+                # Run collect phase
+                self._update_status("正在執行 Collect...", 0.0)
+                self._log("=== Collect 階段 ===")
+
+                mode_config = MODES[config["mode"]]
+                collect_result = self.scraper_engine.run_collect(
+                    script_name=mode_config["collect_script"],
+                    url=config["url"],
+                    output_path=config["output_path"],
+                    max_pages=config["max_pages"],
+                    quiet=config["quiet"],
+                )
+
+                if not collect_result.success:
+                    self._log(f"Collect 失敗: {collect_result.error}")
+                    self._update_status("Collect 失敗", 1.0)
+
+                    def show_collect_error():
+                        self.execution_panel.action_buttons.start_button.disabled = False
+                        self.execution_panel.action_buttons.stop_button.disabled = True
+                        self.page.update()
+
+                    self.page.run_thread(show_collect_error)
+                    return
+
+                count = self.scraper_engine.parse_collected_count(collect_result.output)
+                self._log(f"Collect 完成 - 收集到 {count} 筆資料")
+
+                # Run fetch phase
+                self._update_status("正在執行 Fetch...", 0.5)
+                self._log("=== Fetch 階段 ===")
+                self.page.run_thread(lambda: self.page.update())
+
+                fetch_result = self.scraper_engine.run_fetch(
+                    script_name=mode_config["fetch_script"],
+                    source_path=config["output_path"],
+                    output_path=config["result_path"],
+                    quiet=config["quiet"],
+                )
+
+                if not fetch_result.success:
+                    self._log(f"Fetch 失敗: {fetch_result.error}")
+                    self._update_status("Fetch 失敗", 1.0)
+
+                    def show_fetch_error():
+                        self.execution_panel.action_buttons.start_button.disabled = False
+                        self.execution_panel.action_buttons.stop_button.disabled = True
+                        self.page.update()
+
+                    self.page.run_thread(show_fetch_error)
+                    return
+
+                self._log("Fetch 完成!")
+                self._update_status("執行完成", 1.0)
+
+                # Show success notification on main thread
+                def show_success_notification():
+                    self.notification_helper.show_success(
+                        "執行完成",
+                        f"模式: {config['mode']}\nCollect 與 Fetch 階段均已成功完成"
+                    )
+
+                self.page.run_thread(show_success_notification)
+
+                # Enable open result button on main thread
+                def enable_open_button():
+                    self.execution_panel.action_buttons.open_result_button.disabled = False
+                    self.page.update()
+
+                self.page.run_thread(enable_open_button)
+
+            except Exception as ex:
+                import traceback
+                error_details = traceback.format_exc()
+                self._log(f"執行錯誤: {error_details}")
+
+                def show_error():
+                    self.notification_helper.show_error(
+                        "執行錯誤",
+                        f"{type(ex).__name__}: {str(ex)}"
+                    )
+                    self.execution_panel.action_buttons.start_button.disabled = False
+                    self.execution_panel.action_buttons.stop_button.disabled = True
+                    self.page.update()
+
+                self.page.run_thread(show_error)
+
+        return worker
 
     # ==========================================================
     # Event Handlers
@@ -161,18 +250,8 @@ class ScraperApp:
 
         self.page.bgcolor = colors["bg_primary"]
         self.page.theme_mode = self.theme_manager.get_theme_mode()
-        self.header.apply_theme()
-        self.config_panel.apply_theme(colors)
-        self.execution_panel.apply_theme(colors)
+        self.main_layout.apply_theme(colors)
         self.log_console.update_log_colors()
-
-        # Update split panel border
-        split_row = self.page.controls[0].controls[1]
-        left_panel = split_row.controls[0]
-        left_panel.bgcolor = colors["bg_primary"]
-        left_panel.border = ft.border.only(
-            right=ft.border.BorderSide(1, colors["border_subtle"])
-        )
 
         self.page.update()
 
@@ -212,69 +291,9 @@ class ScraperApp:
         self.execution_panel.action_buttons.open_result_button.disabled = True
         self.is_running["value"] = True
 
-        self._log(f"開始執行 - 模式: {config['mode']}")
-        self._log(f"URL: {config['url']}")
-        self._log(f"最大頁數: {config['max_pages']}")
-        self._log(f"靜默模式: {'是' if config['quiet'] else '否'}")
-
-        # Run collect phase
-        self._update_status("正在執行 Collect...", 0.0)
-        self._log("=== Collect 階段 ===")
-
-        mode_config = MODES[config["mode"]]
-        collect_result = self.scraper_engine.run_collect(
-            script_name=mode_config["collect_script"],
-            url=config["url"],
-            output_path=config["output_path"],
-            max_pages=config["max_pages"],
-            quiet=config["quiet"],
-        )
-
-        if not collect_result.success:
-            self._log(f"Collect 失敗: {collect_result.error}")
-            self._update_status("Collect 失敗", 1.0)
-            self._reset_buttons()
-            return
-
-        count = self.scraper_engine.parse_collected_count(collect_result.output)
-        self._log(f"Collect 完成 - 收集到 {count} 筆資料")
-
-        # Run fetch phase
-        self._update_status("正在執行 Fetch...", 0.5)
-        self._log("=== Fetch 階段 ===")
-        self.page.update()
-
-        fetch_result = self.scraper_engine.run_fetch(
-            script_name=mode_config["fetch_script"],
-            source_path=config["output_path"],
-            output_path=config["result_path"],
-            quiet=config["quiet"],
-        )
-
-        if not fetch_result.success:
-            self._log(f"Fetch 失敗: {fetch_result.error}")
-            self._update_status("Fetch 失敗", 1.0)
-            self._reset_buttons()
-            return
-
-        self._log("Fetch 完成!")
-        self._update_status("執行完成", 1.0)
-
-        # Show success notification
-        def show_notification():
-            self.notification_helper.show_success(
-                "執行完成",
-                f"模式: {config['mode']}\nCollect 與 Fetch 階段均已成功完成"
-            )
-        self.page.run_thread(show_notification)
-
-        # Enable open result button
-        def enable_button():
-            self.execution_panel.action_buttons.open_result_button.disabled = False
-            self.page.update()
-        self.page.run_thread(enable_button)
-
-        self._reset_buttons()
+        # Create and run worker in background thread (like the example)
+        worker = self._create_worker(config)
+        self.page.run_thread(worker)
 
     def _on_stop(self, e):
         """Handle stop button click."""
@@ -339,6 +358,7 @@ class ScraperApp:
             self.execution_panel.action_buttons.start_button.disabled = False
             self.execution_panel.action_buttons.stop_button.disabled = True
             self.page.update()
+
         self.page.run_thread(reset)
 
 
@@ -358,6 +378,5 @@ def app(page: ft.Page):
 # ==========================================================
 # Entry
 # ==========================================================
-
 if __name__ == "__main__":
-    ft.app(app)
+    ft.run(app)

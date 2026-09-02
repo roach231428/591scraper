@@ -99,7 +99,7 @@ Ceshine 的補充:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-安裝所需套件 (Python 3.9+)：
+安裝所需套件 (Python 3.12+)：
 
 ```bash
 uv sync --frozen

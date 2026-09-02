@@ -83,7 +83,8 @@ THEMES: Dict[str, dict] = {
 class ThemeManager:
     """Manages application theme state and color token retrieval."""
 
-    def __init__(self, initial_theme: str = "system"):
+    def __init__(self, page: ft.Page, initial_theme: str = "system"):
+        self.page = page
         self._theme_value = initial_theme  # 'dark', 'light', or 'system'
 
     @property
@@ -103,16 +104,23 @@ class ThemeManager:
         }
         return theme_map.get(self._theme_value, ft.ThemeMode.DARK)
 
+    def is_dark(self) -> bool:
+        """Return the actual effective dark/light state."""
+        if self._theme_value == "dark":
+            return True
+        if self._theme_value == "light":
+            return False
+
+        return self.page.platform_brightness == ft.Brightness.DARK
+
     def get_colors(self) -> Dict[str, str]:
         """Get color tokens based on current theme.
 
         Returns:
             Dictionary of color tokens including accent colors.
         """
-        base = THEMES.get(
-            "dark" if self._theme_value == "system" else self._theme_value,
-            THEMES["dark"]
-        )
+        theme = "dark" if self.is_dark() else "light"
+        base = THEMES[theme]
         return {
             "bg_primary": base["bg_primary"],
             "bg_surface": base["bg_surface"],

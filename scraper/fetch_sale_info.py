@@ -17,13 +17,13 @@ import time
 import shutil
 import random
 import logging
+import csv
 import json
 from datetime import date
 from typing import Optional, Any
 
 import typer
 import joblib
-import pandas as pd
 from tqdm import tqdm
 from tenacity import RetryError
 from DrissionPage import ChromiumPage
@@ -127,7 +127,7 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
         result["addr"] = ""
 
     # 社區
-    community_el = page.ele("css:.info-addr-value.community-link a")
+    community_el = page.ele("css:.info-addr-value.community_link a")
     result["社區"] = community_el.text.strip() if community_el else ""
 
     # 規格資訊 (格局, 屋齡, 坪數, 樓層)
@@ -172,6 +172,42 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
     return result
 
 
+def load_existing_data(data_path: str) -> tuple[list[dict[str, Any]], set[str]]:
+    """Load existing CSV data and return (records, existing_ids)."""
+    records: list[dict[str, Any]] = []
+    existing_ids: set[str] = set()
+
+    with open(data_path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            records.append(row)
+            existing_ids.add(row.get("id", ""))
+
+    return records, existing_ids
+
+
+def save_records(records: list[dict[str, Any]], output_path: str) -> None:
+    """Save records to CSV file."""
+    if not records:
+        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+            pass
+        return
+
+    # Determine all fields from records
+    fieldnames: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        for key in record:
+            if key not in seen:
+                fieldnames.append(key)
+                seen.add(key)
+
+    with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(records)
+
+
 def main(
     source_path: str = "cache/sale_listings.jbl",
     data_path: Optional[str] = None,
@@ -192,13 +228,12 @@ def main(
     """
     # joblib is used here to maintain compatibility with the collect_sale_list.py output format
     listing_ids = joblib.load(source_path)
-    df_original: Optional[pd.DataFrame] = None
+
+    existing_records: list[dict[str, Any]] = []
     if data_path:
-        if data_path.endswith(".pd"):
-            df_original = pd.read_pickle(data_path)
-        else:
-            df_original = pd.read_csv(data_path)
-        listing_ids = list(set(listing_ids) - set(df_original.id.values.astype("str")))
+        existing_records, existing_ids = load_existing_data(data_path)
+        # Filter out already fetched IDs
+        listing_ids = [id_ for id_ in listing_ids if id_ not in existing_ids]
         print(f"After filtering existing: {len(listing_ids)} listings to fetch")
 
     if limit > 0:
@@ -208,7 +243,7 @@ def main(
 
     page = create_browser(headless=quiet)
 
-    data = []
+    data: list[dict[str, Any]] = []
     total = len(listing_ids)
     iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
     for idx, id_ in enumerate(iterator, start=1):
@@ -221,11 +256,11 @@ def main(
         LOGGER.info(f"Fetch progress: {idx}/{total}")
         time.sleep(random.random() + 1)
 
-    df_new = pd.DataFrame(data)
-    df_new["fetched"] = date.today().isoformat()
-    
-    # Ensure all columns in column_ordering exist (even if empty) to avoid KeyError when selecting columns
-    # This must be done BEFORE defining column_ordering
+    # Add fetched date
+    for record in data:
+        record["fetched"] = date.today().isoformat()
+
+    # Ensure all expected columns exist
     expected_columns = [
         "title",
         "price",
@@ -251,12 +286,14 @@ def main(
         "仲介公司",
         "fetched",
     ]
-    for col in expected_columns:
-        if col not in df_new.columns:
-            df_new[col] = ""
-    
-    if df_original is not None:
-        df_new = pd.concat([df_new, df_original], axis=0).reset_index(drop=True)
+    for record in data:
+        for col in expected_columns:
+            if col not in record:
+                record[col] = ""
+
+    # Merge with existing records
+    if existing_records:
+        data = existing_records + data
 
     if output_path is None and data_path is None:
         # default output path
@@ -265,18 +302,25 @@ def main(
         output_path = data_path
         shutil.copy(data_path, data_path + ".bak")
 
-    df_new["link"] = "https://sale.591.com.tw/home/house/detail/2/" + df_new["id"].astype("str") + ".html"
+    # Add link column
+    for record in data:
+        record["link"] = "https://sale.591.com.tw/home/house/detail/2/" + str(record.get("id", "")) + ".html"
 
-    df_new.columns = df_new.columns.str.replace("\n", "").str.replace("\r", "")
+    # Clean up whitespace in all string fields
+    for record in data:
+        for key, value in record.items():
+            if isinstance(value, str):
+                record[key] = value.replace("\n", "").replace("\r", "")
 
-    for col in df_new.select_dtypes(include="object").columns:
-        df_new[col] = df_new[col].astype(str).str.replace("\n", "").str.replace("\r", "")
-    
-    # Define fixed column order for output
-    column_ordering = expected_columns.copy()
-    
-    print(df_new.sample(min(df_new.shape[0], 10)))
-    df_new[column_ordering].to_csv(output_path, index=False, encoding='utf-8-sig')
+    # Sample output
+    sample_size = min(len(data), 10)
+    if sample_size > 0:
+        print("Sample records:")
+        for record in data[:sample_size]:
+            print({k: v for k, v in record.items() if k in expected_columns})
+
+    # Save to CSV
+    save_records(data, output_path)
     print("Finished!")
 
     page.quit()

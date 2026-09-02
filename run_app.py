@@ -15,4 +15,4 @@ if str(project_root) not in sys.path:
 from gui.app import app
 
 if __name__ == "__main__":
-    ft.app(app)
+    ft.run(app)
