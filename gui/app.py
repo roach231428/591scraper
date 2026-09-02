@@ -145,10 +145,25 @@ class ScraperApp:
         """
         def worker():
             try:
+                app_dir = get_base_path()
+                
+                # Use absolute path if user provided one, otherwise resolve relative to app_dir
+                output_path = config["output_path"]
+                result_path = config["result_path"]
+                
+                abs_output_path = str(Path(output_path).resolve() if Path(output_path).is_absolute() else app_dir / output_path)
+                abs_result_path = str(Path(result_path).resolve() if Path(result_path).is_absolute() else app_dir / result_path)
+                
                 self._log(f"開始執行 - 模式: {config['mode']}")
                 self._log(f"URL: {config['url']}")
                 self._log(f"最大頁數: {config['max_pages']}")
                 self._log(f"靜默模式: {'是' if config['quiet'] else '否'}")
+                self._log(f"輸出路徑: {abs_output_path}")
+                self._log(f"結果路徑: {abs_result_path}")
+
+                # Ensure cache directory exists
+                Path(abs_output_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(abs_result_path).parent.mkdir(parents=True, exist_ok=True)
 
                 # Run collect phase
                 self._update_status("正在執行 Collect...", 0.0)
@@ -158,7 +173,7 @@ class ScraperApp:
                 collect_result = self.scraper_engine.run_collect(
                     script_name=mode_config["collect_script"],
                     url=config["url"],
-                    output_path=config["output_path"],
+                    output_path=abs_output_path,
                     max_pages=config["max_pages"],
                     quiet=config["quiet"],
                 )
@@ -185,8 +200,8 @@ class ScraperApp:
 
                 fetch_result = self.scraper_engine.run_fetch(
                     script_name=mode_config["fetch_script"],
-                    source_path=config["output_path"],
-                    output_path=config["result_path"],
+                    source_path=abs_output_path,
+                    output_path=abs_result_path,
                     quiet=config["quiet"],
                 )
 
@@ -211,15 +226,13 @@ class ScraperApp:
                         "執行完成",
                         f"模式: {config['mode']}\nCollect 與 Fetch 階段均已成功完成"
                     )
-
-                self.page.run_thread(show_success_notification)
-
-                # Enable open result button on main thread
-                def enable_open_button():
+                    # Reset button states on main thread
+                    self.execution_panel.action_buttons.start_button.disabled = False
+                    self.execution_panel.action_buttons.stop_button.disabled = True
                     self.execution_panel.action_buttons.open_result_button.disabled = False
                     self.page.update()
 
-                self.page.run_thread(enable_open_button)
+                self.page.run_thread(show_success_notification)
 
             except Exception as ex:
                 import traceback
@@ -304,8 +317,10 @@ class ScraperApp:
         """Handle open result button click."""
         config = self.config_panel.get_config()
         result_path = config["result_path"]
+        
+        # Use absolute path if user provided one, otherwise resolve relative to app_dir
         app_dir = get_base_path()
-        result_file = app_dir / result_path
+        result_file = Path(result_path).resolve() if Path(result_path).is_absolute() else app_dir / result_path
 
         self._log(f"嘗試開啟檔案: {result_file} (存在: {result_file.exists()})")
 

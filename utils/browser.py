@@ -50,4 +50,4 @@ def navigate_to_a_page(page: ChromiumPage, url: str, wait_selector: str = "", ti
         except Exception:
             print(f"Expected content ({wait_selector}) not found, proceeding anyway.")
 
-    time.sleep(random.random() + 1)
+    time.sleep(random.random())

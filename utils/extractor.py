@@ -108,12 +108,12 @@ def extract_data_by_box_title(page: Any, box_title: str) -> Dict[str, str]:
         items = house_box.eles("css:.detail-house-item")
         
         for item in items:
-            key_el = item.ele("css:.detail-house-key", timeout=0.1)
-            value_el = item.ele("css:.detail-house-value", timeout=0.1)
+            key_el = item.ele("css:.detail-house-key", timeout=0.01)
+            value_el = item.ele("css:.detail-house-value", timeout=0.01)
             if key_el and value_el:
                 key = key_el.text.strip().replace("\n", "").replace("\r", "")
                 try:
-                    span_el = value_el.ele("css:span", timeout=0.1)
+                    span_el = value_el.ele("css:span", timeout=0.01)
                     value = span_el.text.strip() if span_el else value_el.text.strip()
                 except Exception:
                     value = value_el.text.strip()
