@@ -51,8 +51,8 @@ class UrlField(ft.Container):
 
     def __init__(self):
         self.field = ft.TextField(
-            label="列表頁面 URL",
-            hint_text="輸入 591 列表頁面 URL",
+            label="搜尋列表頁面 URL",
+            hint_text="輸入 591 搜尋列表頁面 URL",
             expand=True,
             value="",
             filled=True,

@@ -16,3 +16,15 @@ requires-python = ">=3.12"
 dev = [
     "ipython>=8.18.1",
 ]
+
+[tool.flet.app]
+exclude = [
+    ".venv",
+    "build",
+    "dist",
+    ".git",
+    "tests",
+    "cache/**",
+    "*.md",
+    "__pycache__",
+]

@@ -132,7 +132,7 @@ class Header(ft.Container):
                 ),
                 self._build_accent_line(),
             ],
-            spacing=0,
+            spacing=10,
             tight=True,
             expand=True,
         )
@@ -447,6 +447,7 @@ class ExecutionPanel(ft.Column):
                 self._build_section_header(),
                 self.status_indicator,
                 self.action_buttons,
+                ft.Container(height=16),
                 self._log_container,
             ],
             spacing=0,
@@ -505,6 +506,12 @@ class ExecutionPanel(ft.Column):
         log_content = ft.Container(
             content=log_console_manager.log_console,
             expand=True,
+            padding=ft.Padding.only(
+                left=10,
+                right=10,
+                top=10,
+                bottom=10,
+            ),
         )
 
         return ft.Container(
@@ -575,6 +582,7 @@ class MainLayout(ft.Column):
         self.right_panel = ft.Container(
             content=execution_panel,
             expand=True,
+            padding=ft.Padding(left=10, right=10)
         )
 
         content = ft.Column(
@@ -590,7 +598,7 @@ class MainLayout(ft.Column):
                 ),
             ],
             expand=True,
-            spacing=0,
+            spacing=10,
         )
 
         super().__init__(

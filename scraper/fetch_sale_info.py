@@ -126,9 +126,23 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
         LOGGER.warning(f"Failed to parse JSON-LD address: {e}")
         result["addr"] = ""
 
-    # 社區
-    community_el = page.ele("css:.info-addr-value.community_link a")
-    result["社區"] = community_el.text.strip() if community_el else ""
+    # 社區 - 嘗試多種方式以兼容不同的頁面結構
+    community = page.run_js("""
+        const el = document.querySelector('n-house-entrust-entry');
+        return el ? (el.getAttribute('community-name') || '') : '';
+    """)
+    
+    if not community:
+        community_el = page.ele("css:.info-addr-value.community-link")
+        if community_el:
+            community = community_el.text.strip()
+    
+    if not community:
+        community_el = page.ele("css:.info-addr-value.community_link a")
+        if community_el:
+            community = community_el.text.strip()
+    
+    result["社區"] = community or ""
 
     # 規格資訊 (格局, 屋齡, 坪數, 樓層)
     floor_keys = page.eles("css:.info-floor-key-2")
@@ -158,14 +172,14 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
     result["附近交通"] = extract_list_from_box(page, "附近交通", ".detail-house-value")
 
     # 仲介資訊
-    agent_el = page.ele("css:.pc-agent-name")
+    agent_el = page.ele("css:.pc-agent-name", timeout=0.01)
     result["仲介"] = agent_el.text.strip() if agent_el else ""
     
-    company_el = page.ele("css:.pc-agent-company span")
+    company_el = page.ele("css:.pc-agent-company span", timeout=0.01)
     result["仲介公司"] = company_el.text.strip() if company_el else ""
 
     # 有效期
-    info_spans = page.eles("css:.detail-info-span")
+    info_spans = page.eles("css:.detail-info-span", timeout=0.01)
     if len(info_spans) >= 1:
         result["有效期"] = info_spans[-1].text.strip() if info_spans[-1] else ""
 
