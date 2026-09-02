@@ -10,14 +10,14 @@ _注意：目前 591 租房頁面還沒有像房屋買賣頁面一樣將價格�
 
 ### 圖形化介面（推薦）
 
-執行 `run_app.py` 啟動 GUI 應用：
+執行 `main.py` 啟動 GUI 應用：
 
 ```bash
-uv run python run_app.py
+uv run python main.py
 ```
 
 在 GUI 中您可以：
-1. 選擇模式：租屋 / 中古屋
+1. 選擇模式：租屋 / 中古屋 / 新預售案
 2. 輸入 591 搜尋 URL
 3. 設定最大抓取頁數、輸出路徑
 4. 切換靜默模式（headless 瀏覽器）
@@ -118,23 +118,23 @@ export X591URL="https://rent.591.com.tw/?kind=1&order=money&orderType=asc&region
 以下範例會抓取最多 12 頁搜尋結果：
 
 ```bash
-uv run python collect_list.py --max-pages 12
+uv run python scraper/collect_rent_list.py --max-pages 12
 ```
 
-預設結果存放位置是 `cache/listings.jbl`。
+預設結果存放位置是 `cache/rent_listings.jbl`。
 
 ### Step 2: 抓取物件詳細資訊
 
-直接執行 `fetch_info.py` 以獲取上一步抓取到的物件的詳細資訊，結果預設會存到 `cache/df_listings.csv`。
+直接執行 `scraper/fetch_rent_info.py` 以獲取上一步抓取到的物件的詳細資訊，結果預設會存到 `cache/df_rent_listings.csv`。
 
 ```bash
-uv run python fetch_info.py
+uv run python scraper/fetch_rent_info.py
 ```
 
 如果你最近已經有抓過同一個搜尋條件的資料，你可以提供上一次的資料，本腳本會自動跳過已經抓取過的物件，然後在輸出的 CSV 檔案中將新的物件存在舊的前面：
 
 ```bash
-uv run python fetch_info.py --data-path cache/df_listings.csv
+uv run python scraper/fetch_rent_info.py --data-path cache/df_rent_listings.csv
 ```
 
 你可以同時追蹤多組搜尋條件，你只需要將預設 `df_listings.csv` 名稱改成各自條件的自訂名稱即可。
