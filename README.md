@@ -17,7 +17,7 @@ uv run python main.py
 ```
 
 在 GUI 中您可以：
-1. 選擇模式：租屋 / 中古屋
+1. 選擇模式：租屋 / 中古屋 / 新建案
 2. 輸入 591 搜尋 URL
 3. 設定最大抓取頁數、輸出路徑
 4. 切換靜默模式（headless 瀏覽器）
@@ -30,6 +30,14 @@ uv run python main.py
 
 ## Changelog
 
+### 2026-09-07
+
+- 新增 591 新建案資料抓取功能
+  - 新增 `scraper/collect_newhouse_list.py`：根據提供的 591 新建案搜尋 URL 抓取建案列表
+  - 新增 `scraper/fetch_newhouse_info.py`：抓取新建案建案的詳細資訊（含價格、坪數、格局、公設比、樓層規劃、最新動態、成交行情等）
+  - GUI 新增「新建案」模式選項
+  - 支援跳過已失效的建案 ID
+
 ### 2026-09-01
 
 - 重構專案目錄結構
@@ -38,7 +46,7 @@ uv run python main.py
   - 更新所有模組導入路徑
   - 執行入口改為 `run_app.py`
 - 新增 Flet-based GUI 應用
-  - 支援租屋和中古屋兩種模式
+  - 支援租屋、中古屋和新建案三種模式
   - 圖形化介面配置搜尋條件
   - 即時進度監控與日誌顯示
   - 支援深色/淺色主題切換
@@ -125,7 +133,7 @@ uv run python scraper/collect_rent_list.py --max-pages 12
 
 ### Step 2: 抓取物件詳細資訊
 
-直接執行 `scraper/fetch_rent_info.py` 以獲取上一步抓取到的物件的詳細資訊，結果預設會存到 `cache/df_rent_listings.csv`。
+以租屋為例，直接執行 `scraper/fetch_rent_info.py` 以獲取上一步抓取到的物件的詳細資訊，結果預設會存到 `cache/df_rent_listings.csv`。
 
 ```bash
 uv run python scraper/fetch_rent_info.py
