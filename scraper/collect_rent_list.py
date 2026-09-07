@@ -26,6 +26,7 @@ from DrissionPage import ChromiumPage
 from utils.browser import create_browser, navigate_to_a_page
 from utils.extractor import extract_id_from_href
 from utils.pagination import wait_for_page_content
+from utils.persistence import load_existing_ids
 
 URL = os.environ.get("X591URL", "")
 
@@ -62,18 +63,26 @@ def main(url: str = URL, output_path: str = "cache/listings.jbl", max_pages: int
         print("The URL must have a 'region' query argument!")
         raise e
 
+    existing_ids = load_existing_ids(output_path)
+    if existing_ids:
+        print(f"Loaded {len(existing_ids)} existing IDs from {output_path}")
+
     page = create_browser(headless=quiet)
     typer.echo("Browser initialized.")
 
     # Navigate to the specified URL
     navigate_to_a_page(page, url, wait_selector=".item-info-title a", timeout=10)
 
-    listings: set[str] = set()
+    all_listings = set(existing_ids)
     for i in range(max_pages):
         print(f"Page {i + 1}")
 
-        # Extract listing IDs from links
-        listings.update(extract_ids_from_links(page))
+        new_ids = extract_ids_from_links(page)
+        ids_to_add = new_ids - existing_ids
+        all_listings.update(ids_to_add)
+
+        print(f"  Found {len(ids_to_add)} new IDs on this page")
+        print(f"  Total unique IDs so far: {len(all_listings)}")
 
         if i == max_pages - 1:
             typer.echo("Reached maximum pages. Exiting...")
@@ -97,8 +106,8 @@ def main(url: str = URL, output_path: str = "cache/listings.jbl", max_pages: int
         # Wait for new page content
         wait_for_page_content(page, ".item-info-title a", timeout=10)
 
-    joblib.dump(list(listings), output_path)
-    print(f"Done! Collected {len(listings)} entries.")
+    joblib.dump(list(all_listings), output_path)
+    print(f"Done! Collected {len(all_listings)} entries in total ({len(existing_ids)} existing + {len(all_listings - existing_ids)} new).")
 
     page.quit()
 

@@ -1,9 +1,8 @@
+import os
 import re
 import time
-import shutil
 import random
 import logging
-import csv
 from datetime import date
 from typing import Optional, Any
 
@@ -22,6 +21,7 @@ from DrissionPage import ChromiumPage
 
 from utils.post_processing import adjust_price, auto_marking, parse_price
 from utils.browser import create_browser, navigate_to_a_page
+from utils.persistence import load_existing_csv_data, save_records, clean_record_strings, deal_paths, print_sample_records
 
 LOGGER = logging.getLogger(__name__)
 
@@ -110,42 +110,6 @@ def get_listing_info(page: ChromiumPage, listing_id: str):
     return result
 
 
-def load_existing_data(data_path: str) -> tuple[list[dict[str, Any]], set[str]]:
-    """Load existing CSV data and return (records, existing_ids)."""
-    records: list[dict[str, Any]] = []
-    existing_ids: set[str] = set()
-
-    with open(data_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            records.append(row)
-            existing_ids.add(row.get("id", ""))
-
-    return records, existing_ids
-
-
-def save_records(records: list[dict[str, Any]], output_path: str, desc_column: bool = True) -> None:
-    """Save records to CSV file."""
-    if not records:
-        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-            pass
-        return
-
-    # Determine all fields from records
-    fieldnames: list[str] = []
-    seen: set[str] = set()
-    for record in records:
-        for key in record:
-            if key not in seen:
-                fieldnames.append(key)
-                seen.add(key)
-
-    with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(records)
-
-
 def main(
     source_path: str = "cache/listings.jbl",
     data_path: Optional[str] = None,
@@ -158,12 +122,17 @@ def main(
     # collect_list.py output format (.jbl files).
     listing_ids = joblib.load(source_path)
 
+    output_path, data_path = deal_paths(source_path, output_path, data_path, objective="rent")
+    
     existing_records: list[dict[str, Any]] = []
-    if data_path:
-        existing_records, existing_ids = load_existing_data(data_path)
-        # Filter out already fetched IDs
-        listing_ids = [id_ for id_ in listing_ids if id_ not in existing_ids]
-        print(f"After filtering existing: {len(listing_ids)} listings to fetch")
+    existing_ids: set[str] = set()
+
+    if os.path.exists(data_path):
+        existing_records, existing_ids = load_existing_csv_data(data_path)
+        print(f"Loaded {len(existing_ids)} existing records from {data_path}")
+
+    listing_ids = [id_ for id_ in listing_ids if id_ not in existing_ids]
+    print(f"After filtering existing: {len(listing_ids)} listings to fetch")
 
     if limit > 0:
         listing_ids = listing_ids[:limit]
@@ -204,13 +173,6 @@ def main(
     if existing_records:
         data = existing_records + data
 
-    if output_path is None and data_path is None:
-        # default output path
-        output_path = "cache/df_listings.csv"
-    elif output_path is None and data_path:
-        output_path = data_path
-        shutil.copy(data_path, data_path + ".bak")
-
     # Add link column
     for record in data:
         record["link"] = "https://rent.591.com.tw/rent-detail-" + str(record.get("id", "")) + ".html"
@@ -245,15 +207,10 @@ def main(
             if field not in record:
                 record[field] = ""
 
-    # Sample output
-    sample_size = min(len(data), 10)
-    if sample_size > 0:
-        print("Sample records:")
-        for record in data[:sample_size]:
-            print({k: v for k, v in record.items() if k != "desc"})
+    print_sample_records(data, sample_size=10, exclude_keys={"desc"})
 
-    # Save to CSV with defined column order
-    save_records(data, output_path, desc_column=False)
+    # Save to CSV
+    save_records(data, output_path)
     print("Finished!")
 
     page.quit()

@@ -25,6 +25,7 @@ from DrissionPage import ChromiumPage
 from utils.browser import create_browser, navigate_to_a_page
 from utils.extractor import extract_ids_from_json_ld
 from utils.pagination import build_next_url_by_first_row, wait_for_page_content
+from utils.persistence import load_existing_ids
 
 URL = os.environ.get("X591NewHouseURL", "")
 
@@ -66,21 +67,26 @@ def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_p
         print(f"Error parsing URL: {e}")
         raise e
 
+    existing_ids = load_existing_ids(output_path)
+    if existing_ids:
+        print(f"Loaded {len(existing_ids)} existing IDs from {output_path}")
+
     page = create_browser(headless=quiet)
     print("Browser initialized.")
 
     # Navigate to the specified URL
     navigate_to_a_page(page, url, wait_selector="script[type='application/ld+json']", timeout=5)
 
-    listings: set[str] = set()
+    all_listings = set(existing_ids)
     for i in range(max_pages):
         print(f"Page {i + 1}")
 
-        # Primary method: Extract from JSON-LD structured data
-        ids = collect_ids_from_page(page)
-        listings.update(ids)
+        new_ids = set(collect_ids_from_page(page))
+        ids_to_add = new_ids - existing_ids
+        all_listings.update(ids_to_add)
 
-        print(f"  Found {len(listings)} unique IDs so far")
+        print(f"  Found {len(ids_to_add)} new IDs on this page")
+        print(f"  Total unique IDs so far: {len(all_listings)}")
 
         if i == max_pages - 1:
             print("Reached maximum pages. Exiting...")
@@ -96,8 +102,8 @@ def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_p
         # Wait for new page content
         wait_for_page_content(page, "script[type='application/ld+json']", timeout=5)
 
-    joblib.dump(list(listings), output_path)
-    print(f"Done! Collected {len(listings)} entries.")
+    joblib.dump(list(all_listings), output_path)
+    print(f"Done! Collected {len(all_listings)} entries in total ({len(existing_ids)} existing + {len(all_listings - existing_ids)} new).")
 
     page.quit()
 
