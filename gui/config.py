@@ -29,6 +29,13 @@ MODES: Dict[str, dict] = {
         "output_path": "cache/sale_listings.jbl",
         "result_path": "cache/sale_results.csv",
     },
+    "新建案": {
+        "collect_script": "collect_newhouse_list.py",
+        "fetch_script": "fetch_newhouse_info.py",
+        "url_placeholder": "https://newhouse.591.com.tw/...",
+        "output_path": "cache/newhouse_listings.jbl",
+        "result_path": "cache/newhouse_results.csv",
+    },
 }
 
 
