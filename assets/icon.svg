@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF8A00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF6B00;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded rectangle background - 591 Orange -->
+  <rect x="20" y="20" width="472" height="472" rx="100" ry="100" fill="url(#bgGrad)"/>
+  
+  <!-- House silhouette outline - Dark contrast -->
+  <path d="M 106 244 L 256 120 L 406 244" fill="none" stroke="#1A1A2E" stroke-width="12" stroke-linejoin="round"/>
+  
+  <!-- House body - White with dark outline -->
+  <rect x="130" y="230" width="252" height="210" rx="10" fill="#FFFFFF" stroke="#1A1A2E" stroke-width="8"/>
+  
+  <!-- Roof fill - Light orange -->
+  <path d="M 112 240 L 256 130 L 400 240" fill="#FFA23D" stroke="#1A1A2E" stroke-width="6" stroke-linejoin="round"/>
+  
+  <!-- Door - Dark with orange accent -->
+  <rect x="218" y="320" width="76" height="108" rx="8" fill="#1A1A2E"/>
+  <rect x="226" y="328" width="60" height="48" rx="4" fill="#FF6B00"/>
+  <circle cx="280" cy="378" r="6" fill="#FFFFFF"/>
+  
+  <!-- Left Window - Dark frame with light glass -->
+  <rect x="150" y="265" width="56" height="50" rx="6" fill="#E8F4FD" stroke="#1A1A2E" stroke-width="4"/>
+  <line x1="178" y1="265" x2="178" y2="315" stroke="#1A1A2E" stroke-width="3"/>
+  <line x1="150" y1="290" x2="206" y2="290" stroke="#1A1A2E" stroke-width="3"/>
+  
+  <!-- Right Window - Dark frame with light glass -->
+  <rect x="306" y="265" width="56" height="50" rx="6" fill="#E8F4FD" stroke="#1A1A2E" stroke-width="4"/>
+  <line x1="334" y1="265" x2="334" y2="315" stroke="#1A1A2E" stroke-width="3"/>
+  <line x1="306" y1="290" x2="362" y2="290" stroke="#1A1A2E" stroke-width="3"/>
+  
+  <!-- Download arrow - White with dark outline -->
+  <g transform="translate(256, 448)">
+    <path d="M 0 -28 L -18 0 L 18 0 Z" fill="#FFFFFF" stroke="#1A1A2E" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="-35" y="5" width="70" height="10" rx="4" fill="#FFFFFF" stroke="#1A1A2E" stroke-width="3"/>
+    <rect x="-35" y="22" width="70" height="10" rx="4" fill="#FFFFFF" stroke="#1A1A2E" stroke-width="3"/>
+  </g>
+  
+  <!-- 591 badge - White circle with dark border -->
+  <circle cx="400" cy="125" r="48" fill="#FFFFFF" stroke="#1A1A2E" stroke-width="6"/>
+  <text x="400" y="139" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#FF6B00">591</text>
+</svg>

@@ -24,7 +24,10 @@ exclude = [
     "dist",
     ".git",
     "tests",
-    "cache/**",
+    "cache",
     "*.md",
     "__pycache__",
 ]
+
+[tool.flet.icons]
+path = "assets/icon.png"
