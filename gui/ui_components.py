@@ -90,14 +90,46 @@ class UrlField(ft.Container):
 
 
 class MaxPagesField(ft.Container):
-    """Max pages input field."""
+    """Max pages input field with the stepper inside the field.
 
-    def __init__(self):
+    The stepper is drawn with ``ft.Stack`` so the arrows overlay the
+    right side of the field without participating in the input's
+    layout at all. This guarantees the text baseline and the field
+    height stay identical to a plain TextField.
+    """
+
+    MIN_VALUE = 1
+    MAX_VALUE = 999
+
+    def __init__(self, on_change=None):
+        self._on_change = on_change
+        self.up_button = ft.Container(
+            content=ft.Icon(
+                ft.Icons.KEYBOARD_ARROW_UP,
+                size=18,
+            ),
+            width=24,
+            height=24,
+            alignment=ft.Alignment(0, 0),
+            on_click=self._increment,
+        )
+
+        self.down_button = ft.Container(
+            content=ft.Icon(
+                ft.Icons.KEYBOARD_ARROW_DOWN,
+                size=18,
+            ),
+            width=24,
+            height=24,
+            alignment=ft.Alignment(0, 0),
+            on_click=self._decrement,
+        )
+
         self.field = ft.TextField(
             label="最大頁數",
             value="10",
             keyboard_type=ft.KeyboardType.NUMBER,
-            width=120,
+            width=150,
             filled=True,
             bgcolor=None,
             border_color=None,
@@ -106,14 +138,66 @@ class MaxPagesField(ft.Container):
             label_style=None,
             hint_style=None,
         )
+
+        # 精確控制箭頭位置
+        stepper_overlay = ft.Stack(
+            controls=[
+                ft.Container(
+                    content=self.up_button,
+                    width=24,
+                    height=20,
+                    right=4,
+                    top=4,
+                ),
+                ft.Container(
+                    content=self.down_button,
+                    width=24,
+                    height=20,
+                    right=4,
+                    top=25,
+                ),
+            ],
+            width=150,
+            height=56,
+        )
+
+        content = ft.Stack(
+            controls=[
+                self.field,
+                stepper_overlay,
+            ],
+            width=150,
+            height=56,
+        )
+
         super().__init__(
-            content=self.field,
+            content=content,
             expand=False,
         )
 
     @property
     def value(self):
         return self.field.value
+
+    def _get_current(self) -> int:
+        """Parse the current field value, falling back to 10."""
+        try:
+            return int(self.field.value)
+        except (TypeError, ValueError):
+            return 10
+
+    def _step(self, delta: int):
+        """Adjust the value by delta, clamped to [MIN_VALUE, MAX_VALUE]."""
+        new_value = max(self.MIN_VALUE, min(self._get_current() + delta, self.MAX_VALUE))
+        self.field.value = str(new_value)
+        if self._on_change:
+            self._on_change()
+
+    def _increment(self, e):
+        self._step(1)
+
+    def _decrement(self, e):
+        self._step(-1)
 
     def apply_theme(self, colors):
         self.field.bgcolor = colors["bg_input"]
@@ -122,6 +206,8 @@ class MaxPagesField(ft.Container):
         self.field.color = colors["text_primary"]
         self.field.label_style = ft.TextStyle(color=colors["text_secondary"])
         self.field.hint_style = ft.TextStyle(color=colors["text_muted"])
+        self.up_button.icon_color = colors["text_secondary"]
+        self.down_button.icon_color = colors["text_secondary"]
 
 
 class PathField(ft.Container):

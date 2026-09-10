@@ -199,12 +199,9 @@ class ConfigPanel(ft.Column):
 
     def __init__(self, on_mode_change=None):
         self.mode_dropdown = ModeDropdown(on_select=on_mode_change)
+        self._on_page_count_change = None
         self.url_field = UrlField()
-        self.max_pages_field = MaxPagesField()
-        self.output_path_field = PathField(
-            "Collect 輸出檔案路徑",
-            "cache/listings.jbl",
-        )
+        self.max_pages_field = MaxPagesField(on_change=self._notify_page_count_change)
         self.result_path_field = PathField(
             "Fetch 結果檔案路徑",
             "cache/results.csv",
@@ -271,7 +268,7 @@ class ConfigPanel(ft.Column):
                 [
                     self.mode_dropdown,
                     self.url_field,
-                    self._build_output_row(),
+                    self._build_max_pages_row(),
                     self._build_result_section(),
                 ],
                 spacing=0,
@@ -281,7 +278,7 @@ class ConfigPanel(ft.Column):
             expand=True,
         )
 
-    def _build_output_row(self) -> ft.Container:
+    def _build_max_pages_row(self) -> ft.Container:
         return ft.Container(
             content=ft.Row(
                 [
@@ -292,11 +289,6 @@ class ConfigPanel(ft.Column):
                             right=6,
                             bottom=12,
                         ),
-                    ),
-                    ft.Container(width=12),
-                    ft.Container(
-                        content=self.output_path_field,
-                        expand=True,
                     ),
                 ],
                 spacing=0,
@@ -325,7 +317,6 @@ class ConfigPanel(ft.Column):
             self.mode_dropdown,
             self.url_field,
             self.max_pages_field,
-            self.output_path_field,
             self.result_path_field,
             self.quiet_checkbox,
         ):
@@ -342,7 +333,6 @@ class ConfigPanel(ft.Column):
             return
 
         self.url_field.hint_text = config["url_placeholder"]
-        self.output_path_field.value = config["output_path"]
         self.result_path_field.value = config["result_path"]
 
     def get_config(self) -> Dict:
@@ -353,7 +343,6 @@ class ConfigPanel(ft.Column):
             mode=mode,
             url=self.url_field.value,
             max_pages=self._get_max_pages(),
-            output_path=self.output_path_field.value,
             result_path=self.result_path_field.value,
             quiet=self.quiet_checkbox.value,
         )
@@ -368,6 +357,15 @@ class ConfigPanel(ft.Column):
             )
         except (TypeError, ValueError):
             return self.DEFAULT_MAX_PAGES
+
+    def set_page_count_change_callback(self, callback):
+        """Register a callback invoked when the stepper buttons change the value."""
+        self._on_page_count_change = callback
+
+    def _notify_page_count_change(self):
+        """Notify the app so it can refresh the UI after a stepper click."""
+        if self._on_page_count_change:
+            self._on_page_count_change()
 
 
 # ==========================================================

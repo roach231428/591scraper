@@ -94,6 +94,7 @@ class ScraperApp:
         self.config_panel = ConfigPanel(
             on_mode_change=self._on_mode_change
         )
+        self.config_panel.set_page_count_change_callback(self._on_page_count_change)
 
         # Execution panel
         self.execution_panel = ExecutionPanel(
@@ -148,21 +149,16 @@ class ScraperApp:
                 app_dir = get_base_path()
                 
                 # Use absolute path if user provided one, otherwise resolve relative to app_dir
-                output_path = config["output_path"]
                 result_path = config["result_path"]
-                
-                abs_output_path = str(Path(output_path).resolve() if Path(output_path).is_absolute() else app_dir / output_path)
                 abs_result_path = str(Path(result_path).resolve() if Path(result_path).is_absolute() else app_dir / result_path)
                 
                 self._log(f"開始執行 - 模式: {config['mode']}")
                 self._log(f"URL: {config['url']}")
                 self._log(f"最大頁數: {config['max_pages']}")
                 self._log(f"靜默模式: {'是' if config['quiet'] else '否'}")
-                self._log(f"輸出路徑: {abs_output_path}")
                 self._log(f"結果路徑: {abs_result_path}")
 
                 # Ensure cache directory exists
-                Path(abs_output_path).parent.mkdir(parents=True, exist_ok=True)
                 Path(abs_result_path).parent.mkdir(parents=True, exist_ok=True)
 
                 # Run collect phase
@@ -173,7 +169,6 @@ class ScraperApp:
                 collect_result = self.scraper_engine.run_collect(
                     script_name=mode_config["collect_script"],
                     url=config["url"],
-                    output_path=abs_output_path,
                     max_pages=config["max_pages"],
                     quiet=config["quiet"],
                 )
@@ -190,19 +185,19 @@ class ScraperApp:
                     self.page.run_thread(show_collect_error)
                     return
 
-                count = self.scraper_engine.parse_collected_count(collect_result.output)
-                self._log(f"Collect 完成 - 收集到 {count} 筆資料")
+                id_list = collect_result.id_list or []
+                self._log(f"Collect 完成 - 收集到 {len(id_list)} 筆資料")
 
-                # Run fetch phase
+                # Run fetch phase with the collected IDs passed directly
                 self._update_status("正在執行 Fetch...", 0.5)
                 self._log("=== Fetch 階段 ===")
                 self.page.run_thread(lambda: self.page.update())
 
                 fetch_result = self.scraper_engine.run_fetch(
                     script_name=mode_config["fetch_script"],
-                    source_path=abs_output_path,
                     output_path=abs_result_path,
                     quiet=config["quiet"],
+                    id_list=id_list,
                 )
 
                 if not fetch_result.success:
@@ -272,6 +267,10 @@ class ScraperApp:
         """Handle mode dropdown change."""
         mode = self.config_panel.mode_dropdown.value
         self.config_panel.update_paths_for_mode(mode)
+        self.page.update()
+
+    def _on_page_count_change(self):
+        """Refresh the UI after the max pages stepper changes the value."""
         self.page.update()
 
     def _on_progress(self, status_text: str, progress: float):

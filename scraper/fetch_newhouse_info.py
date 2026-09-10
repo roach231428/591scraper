@@ -361,25 +361,33 @@ def get_listing_info(page: ChromiumPage, listing_id: str) -> dict:
 
 
 def main(
-    source_path: str = "cache/newhouse_listings.jbl",
+    source_path: Optional[str] = None,
     data_path: Optional[str] = None,
     output_path: Optional[str] = None,
     limit: int = -1,
     quiet: bool = False,
     use_tqdm: bool = True,
+    id_list: Optional[list[str]] = None,
 ):
     """Main function to fetch new house listing information.
-    
+
     Args:
-        source_path: Path to the joblib file containing listing IDs
+        source_path: Path to the joblib file containing listing IDs (CLI mode)
         data_path: Path to existing CSV data to merge with (auto-detected if not provided)
         output_path: Path to save the output CSV
         limit: Maximum number of listings to fetch (-1 for all)
         quiet: Whether to run in headless mode
         use_tqdm: Whether to display a tqdm progress bar (useful when running directly in terminal)
+        id_list: Listing IDs passed directly (GUI mode); skips loading source_path
     """
-    # joblib is used here to maintain compatibility with the collect_newhouse_list.py output format
-    listing_ids = joblib.load(source_path)
+    if id_list is not None:
+        listing_ids = list(id_list)
+        if source_path is None:
+            source_path = "cache/newhouse_listings.jbl"
+    else:
+        if source_path is None:
+            source_path = "cache/newhouse_listings.jbl"
+        listing_ids = joblib.load(source_path)
 
     output_path, data_path = deal_paths(source_path, output_path, data_path, objective="newhouse")
     

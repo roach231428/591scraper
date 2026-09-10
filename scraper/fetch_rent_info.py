@@ -111,16 +111,22 @@ def get_listing_info(page: ChromiumPage, listing_id: str):
 
 
 def main(
-    source_path: str = "cache/listings.jbl",
+    source_path: Optional[str] = None,
     data_path: Optional[str] = None,
     output_path: Optional[str] = None,
     limit: int = -1,
     quiet: bool = False,
     use_tqdm: bool = True,
+    id_list: Optional[list[str]] = None,
 ):
-    # joblib is used here to maintain compatibility with the existing
-    # collect_list.py output format (.jbl files).
-    listing_ids = joblib.load(source_path)
+    if id_list is not None:
+        listing_ids = list(id_list)
+        if source_path is None:
+            source_path = "cache/listings.jbl"
+    else:
+        if source_path is None:
+            source_path = "cache/listings.jbl"
+        listing_ids = joblib.load(source_path)
 
     output_path, data_path = deal_paths(source_path, output_path, data_path, objective="rent")
     
