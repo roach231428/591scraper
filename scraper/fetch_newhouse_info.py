@@ -26,7 +26,7 @@ from tenacity import RetryError
 from DrissionPage import ChromiumPage
 
 from utils.browser import create_browser, navigate_to_a_page
-from utils.persistence import load_existing_csv_data, save_records, clean_record_strings, deal_paths, print_sample_records
+from utils.persistence import load_existing_csv_data, append_record, clean_record_strings, deal_paths, print_sample_records
 
 LOGGER = logging.getLogger(__name__)
 
@@ -408,24 +408,8 @@ def main(
     
     # Sequential mode
     page = create_browser(headless=quiet)
-    data: list[dict[str, Any]] = []
-    total = len(listing_ids)
-    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
-    for idx, id_ in enumerate(iterator, start=1):
-        try:
-            data.append(get_listing_info(page, id_))
-        except NotExistException:
-            LOGGER.warning(f"Does not exist: {id_}")
-        print(f"Fetch progress: {idx}/{total}")
-        LOGGER.info(f"Fetch progress: {idx}/{total}")
-        time.sleep(random.random() + 1)
-    page.quit()
-    
-    # Add fetched date
-    for record in data:
-        record["fetched"] = date.today().isoformat()
 
-    # Ensure all expected columns exist
+    # Columns appended incrementally to the output CSV (in order)
     expected_columns = [
         "title",
         "標籤",
@@ -466,24 +450,42 @@ def main(
         "描述",
         "fetched",
     ]
-    for record in data:
-        for col in expected_columns:
-            if col not in record:
-                record[col] = ""
+    csv_fieldnames = ["id"] + expected_columns
 
-    # Merge with existing records
-    if existing_records:
-        data = existing_records + data
+    # Incremental save: append one row per fetched listing so progress is
+    # persisted immediately (survives crashes / interruptions).
+    data: list[dict[str, Any]] = []
+    total = len(listing_ids)
+    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
+    for idx, id_ in enumerate(iterator, start=1):
+        try:
+            record = get_listing_info(page, id_)
+        except NotExistException:
+            LOGGER.warning(f"Does not exist: {id_}")
+            record = None
 
-    # Add link column
-    for record in data:
-        record["link"] = "https://newhouse.591.com.tw/" + str(record.get("id", ""))
+        if record is not None:
+            # Add fetched date
+            record["fetched"] = date.today().isoformat()
 
-    clean_record_strings(data)
+            # Ensure all expected columns exist
+            for col in expected_columns:
+                if col not in record:
+                    record[col] = ""
+
+            # Add link column
+            record["link"] = "https://newhouse.591.com.tw/" + str(record.get("id", ""))
+
+            clean_record_strings([record])
+            append_record(record, output_path, csv_fieldnames)
+            data.append(record)
+
+        print(f"Fetch progress: {idx}/{total}")
+        LOGGER.info(f"Fetch progress: {idx}/{total}")
+        time.sleep(random.random() + 1)
+    page.quit()
+
     print_sample_records(data, sample_size=10, include_keys=set(expected_columns))
-
-    # Save to CSV
-    save_records(data, output_path)
     print("Finished!")
 
 

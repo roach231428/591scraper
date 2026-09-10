@@ -29,7 +29,7 @@ from DrissionPage import ChromiumPage
 
 from utils.browser import create_browser, navigate_to_a_page
 from utils.extractor import extract_data_by_box_title, extract_list_from_box
-from utils.persistence import load_existing_csv_data, save_records, clean_record_strings, deal_paths, print_sample_records
+from utils.persistence import load_existing_csv_data, append_record, clean_record_strings, deal_paths, print_sample_records
 
 LOGGER = logging.getLogger(__name__)
 
@@ -234,67 +234,74 @@ def main(
 
     page = create_browser(headless=quiet)
 
-    data: list[dict[str, Any]] = []
-    total = len(listing_ids)
-    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
-    for idx, id_ in enumerate(iterator, start=1):
-        try:
-            data.append(get_listing_info(page, id_))
-        except NotExistException:
-            LOGGER.warning(f"Does not exist: {id_}")
-            # continue without adding
-        print(f"Fetch progress: {idx}/{total}")
-        LOGGER.info(f"Fetch progress: {idx}/{total}")
-        time.sleep(random.random() + 1)
-
-    # Add fetched date
-    for record in data:
-        record["fetched"] = date.today().isoformat()
-
-    # Ensure all expected columns exist
     expected_columns = [
         "title",
         "price",
         "price_unit",
         "unit_price",
-        "link",
         "addr",
         "latitude",
         "longitude",
         "社區",
         "格局",
         "屋齡",
-        "樓層",
         "坪數",
+        "樓層",
+        "現況",
+        "型態",
+        "裝潢程度",
+        "管理費",
+        "帶租約",
+        "法定用途",
+        "車位",
+        "公設比",
         "主建物",
         "附屬建物",
         "共用部分",
-        "公設比",
-        "管理費",
+        "土地坪數",
         "生活機能",
         "附近交通",
         "仲介",
         "仲介公司",
+        "有效期",
         "fetched",
+        "link",
     ]
-    for record in data:
-        for col in expected_columns:
-            if col not in record:
-                record[col] = ""
+    csv_fieldnames = ["id"] + expected_columns
 
-    # Merge with existing records
-    if existing_records:
-        data = existing_records + data
+    # Incremental save: append one row per fetched listing so progress is
+    # persisted immediately (survives crashes / interruptions).
+    data: list[dict[str, Any]] = []
+    total = len(listing_ids)
+    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
+    for idx, id_ in enumerate(iterator, start=1):
+        try:
+            record = get_listing_info(page, id_)
+        except NotExistException:
+            LOGGER.warning(f"Does not exist: {id_}")
+            record = None
 
-    # Add link column
-    for record in data:
-        record["link"] = "https://sale.591.com.tw/home/house/detail/2/" + str(record.get("id", "")) + ".html"
+        if record is not None:
+            # Add fetched date
+            record["fetched"] = date.today().isoformat()
 
-    clean_record_strings(data)
+            # Ensure all expected columns exist
+            for col in expected_columns:
+                if col not in record:
+                    record[col] = ""
+
+            # Add link column
+            record["link"] = "https://sale.591.com.tw/home/house/detail/2/" + str(record.get("id", "")) + ".html"
+
+            clean_record_strings([record])
+            append_record(record, output_path, csv_fieldnames)
+            data.append(record)
+
+        print(f"Fetch progress: {idx}/{total}")
+        LOGGER.info(f"Fetch progress: {idx}/{total}")
+        time.sleep(random.random() + 1)
+
     print_sample_records(data, sample_size=10, include_keys=set(expected_columns))
-
-    # Save to CSV
-    save_records(data, output_path)
     print("Finished!")
 
     page.quit()
