@@ -70,31 +70,23 @@ def auto_detect_csv_path(source_path: str) -> str:
     return base + ".csv"
 
 
-def save_records(records: List[Dict[str, Any]], output_path: str) -> None:
-    """Save records to CSV file.
+def append_record(record: Dict[str, Any], output_path: str, fieldnames: List[str]) -> None:
+    """Append a single record to the output CSV file incrementally.
+    
+    If the file does not exist (or is empty), a header row is written first.
+    Keys not present in `fieldnames` are ignored; missing keys are written as empty strings.
     
     Args:
-        records: List of record dictionaries to save.
-        output_path: Path to save the CSV file.
+        record: The record dictionary to append.
+        output_path: Path to the CSV file.
+        fieldnames: The column order used for the CSV.
     """
-    if not records:
-        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-            pass
-        return
-
-    # Determine all fields from records
-    fieldnames: List[str] = []
-    seen: Set[str] = set()
-    for record in records:
-        for key in record:
-            if key not in seen:
-                fieldnames.append(key)
-                seen.add(key)
-
-    with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(records)
+    write_header = not os.path.exists(output_path) or os.path.getsize(output_path) == 0
+    with open(output_path, "a", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        if write_header:
+            writer.writeheader()
+        writer.writerow({key: record.get(key, "") for key in fieldnames})
 
 
 def clean_record_strings(records: list[dict[str, Any]]) -> list[dict[str, Any]]:

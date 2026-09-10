@@ -21,7 +21,7 @@ from DrissionPage import ChromiumPage
 
 from utils.post_processing import adjust_price, auto_marking, parse_price
 from utils.browser import create_browser, navigate_to_a_page
-from utils.persistence import load_existing_csv_data, save_records, clean_record_strings, deal_paths, print_sample_records
+from utils.persistence import load_existing_csv_data, append_record, clean_record_strings, deal_paths, print_sample_records
 
 LOGGER = logging.getLogger(__name__)
 
@@ -147,42 +147,6 @@ def main(
 
     page = create_browser(headless=quiet)
 
-    data: list[dict[str, Any]] = []
-    total = len(listing_ids)
-    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
-    for idx, id_ in enumerate(iterator, start=1):
-        try:
-            data.append(get_listing_info(page, id_))
-        except NotExistException:
-            LOGGER.warning(f"Does not exist: {id_}")
-            pass
-        print(f"Fetch progress: {idx}/{total}")
-        LOGGER.info(f"Fetch progress: {idx}/{total}")
-        time.sleep(random.random() * 5)
-
-    # Add optional fields if missing
-    optional_fields = ("租金含", "車位費", "管理費")
-    for record in data:
-        for field in optional_fields:
-            if field not in record:
-                record[field] = None
-
-    # Apply post-processing
-    data = auto_marking(data)
-    data = adjust_price(data)
-
-    # Add fetched date
-    for record in data:
-        record["fetched"] = date.today().isoformat()
-
-    # Merge with existing records
-    if existing_records:
-        data = existing_records + data
-
-    # Add link column
-    for record in data:
-        record["link"] = "https://rent.591.com.tw/rent-detail-" + str(record.get("id", "")) + ".html"
-
     # Define output column order
     column_ordering = [
         "mark",
@@ -207,16 +171,49 @@ def main(
         "desc",
     ]
 
-    # Ensure all records have the required fields
-    for record in data:
-        for field in column_ordering:
-            if field not in record:
-                record[field] = ""
+    # Incremental save: append one row per fetched listing so progress is
+    # persisted immediately (survives crashes / interruptions).
+    data: list[dict[str, Any]] = []
+    total = len(listing_ids)
+    iterator = tqdm(listing_ids, ncols=100) if use_tqdm else listing_ids
+    for idx, id_ in enumerate(iterator, start=1):
+        try:
+            record = get_listing_info(page, id_)
+        except NotExistException:
+            LOGGER.warning(f"Does not exist: {id_}")
+            record = None
+
+        if record is not None:
+            # Add optional fields if missing
+            optional_fields = ("租金含", "車位費", "管理費")
+            for field in optional_fields:
+                if field not in record:
+                    record[field] = None
+
+            # Apply post-processing
+            record = auto_marking([record])[0]
+            record = adjust_price([record])[0]
+
+            # Add fetched date
+            record["fetched"] = date.today().isoformat()
+
+            # Add link column
+            record["link"] = "https://rent.591.com.tw/rent-detail-" + str(record.get("id", "")) + ".html"
+
+            # Ensure all records have the required fields
+            for field in column_ordering:
+                if field not in record:
+                    record[field] = ""
+
+            clean_record_strings([record])
+            append_record(record, output_path, column_ordering)
+            data.append(record)
+
+        print(f"Fetch progress: {idx}/{total}")
+        LOGGER.info(f"Fetch progress: {idx}/{total}")
+        time.sleep(random.random() * 5)
 
     print_sample_records(data, sample_size=10, exclude_keys={"desc"})
-
-    # Save to CSV
-    save_records(data, output_path)
     print("Finished!")
 
     page.quit()
