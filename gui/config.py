@@ -19,21 +19,18 @@ MODES: Dict[str, dict] = {
         "collect_script": "collect_rent_list.py",
         "fetch_script": "fetch_rent_info.py",
         "url_placeholder": "https://rent.591.com.tw/...",
-        "output_path": "cache/listings.jbl",
         "result_path": "cache/rent_results.csv",
     },
     "中古屋": {
         "collect_script": "collect_sale_list.py",
         "fetch_script": "fetch_sale_info.py",
         "url_placeholder": "https://sale.591.com.tw/...",
-        "output_path": "cache/sale_listings.jbl",
         "result_path": "cache/sale_results.csv",
     },
     "新建案": {
         "collect_script": "collect_newhouse_list.py",
         "fetch_script": "fetch_newhouse_info.py",
         "url_placeholder": "https://newhouse.591.com.tw/...",
-        "output_path": "cache/newhouse_listings.jbl",
         "result_path": "cache/newhouse_results.csv",
     },
 }

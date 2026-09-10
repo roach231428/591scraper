@@ -64,14 +64,15 @@ class ProgressTracker:
 class ScraperResult:
     """Represents the result of a scraper execution."""
 
-    def __init__(self, success: bool, output: str = "", error: str = ""):
+    def __init__(self, success: bool, output: str = "", error: str = "", id_list: list[str] | None = None):
         self.success = success
         self.output = output
         self.error = error
+        self.id_list = id_list
 
     @classmethod
-    def success_result(cls, output: str = "") -> "ScraperResult":
-        return cls(success=True, output=output)
+    def success_result(cls, output: str = "", id_list: list[str] | None = None) -> "ScraperResult":
+        return cls(success=True, output=output, id_list=id_list)
 
     @classmethod
     def error_result(cls, error: str) -> "ScraperResult":
@@ -108,21 +109,24 @@ class ScraperEngine:
         self,
         script_name: str,
         url: str,
-        output_path: str,
         max_pages: int,
         quiet: bool,
+        output_path: str = "",
     ) -> ScraperResult:
         """Run a collect phase script.
 
         Args:
             script_name: Script filename (e.g., "collect_sale_list.py").
             url: 591 listing page URL.
-            output_path: Path to save collected listings.
             max_pages: Maximum number of pages to scrape.
             quiet: Whether to run in headless mode.
+            output_path: Optional path to save collected listings as a
+                joblib file. Pass an empty string (default) to skip
+                saving; the collected IDs are returned via
+                ``ScraperResult.id_list`` instead.
 
         Returns:
-            ScraperResult with execution outcome.
+            ScraperResult with execution outcome and collected id_list.
         """
         self._ensure_functions_loaded()
 
@@ -141,17 +145,18 @@ class ScraperEngine:
     def run_fetch(
         self,
         script_name: str,
-        source_path: str,
         output_path: str,
         quiet: bool,
+        id_list: list[str],
     ) -> ScraperResult:
         """Run a fetch phase script.
 
         Args:
             script_name: Script filename (e.g., "fetch_sale_info.py").
-            source_path: Path to collected listings file.
             output_path: Path to save fetched results.
             quiet: Whether to run in headless mode.
+            id_list: Listing IDs collected in the collect phase, passed
+                directly without going through a .jbl file.
 
         Returns:
             ScraperResult with execution outcome.
@@ -164,10 +169,10 @@ class ScraperEngine:
 
         return self._run_with_args(
             func,
-            source_path=source_path,
             output_path=output_path,
             quiet=quiet,
             use_tqdm=False,
+            id_list=id_list,
         )
 
     def _run_with_args(self, func, **kwargs) -> ScraperResult:
@@ -207,9 +212,10 @@ class ScraperEngine:
         builtins.print = captured_print
 
         try:
-            func(**kwargs)
+            result = func(**kwargs)
             output = "\n".join(self._output_lines)
-            return ScraperResult.success_result(output=output)
+            id_list = result if isinstance(result, list) else None
+            return ScraperResult.success_result(output=output, id_list=id_list)
         except Exception as ex:
             import traceback
             error_details = traceback.format_exc()

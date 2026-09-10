@@ -25,7 +25,6 @@ from DrissionPage import ChromiumPage
 from utils.browser import create_browser, navigate_to_a_page
 from utils.extractor import extract_ids_from_json_ld
 from utils.pagination import build_next_url_by_first_row, wait_for_page_content
-from utils.persistence import load_existing_ids
 
 URL = os.environ.get("X591NewHouseURL", "")
 
@@ -43,14 +42,21 @@ def collect_ids_from_page(page: ChromiumPage) -> List[str]:
     return extract_ids_from_json_ld(html)
 
 
-def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_pages: int = 10, quiet: bool = False):
+def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_pages: int = 10, quiet: bool = False) -> list[str]:
     """Main function to collect new house listing IDs.
-    
+
+    When ``output_path`` is provided, the collected IDs are also saved to a
+    joblib file for CLI usage; GUI callers can pass an empty
+    ``output_path`` to skip saving and use the returned list directly.
+
     Args:
         url: The URL for the 591.com.tw new house listings (defaults to X591NewHouseURL env var)
-        output_path: Path to save the collected IDs (default: cache/newhouse_listings.jbl)
+        output_path: Path to save the collected IDs (empty to skip saving)
         max_pages: Maximum number of pages to scrape
         quiet: Whether to run in headless mode
+
+    Returns:
+        List of collected listing IDs.
     """
     if not url:
         print("Error: URL is not set!")
@@ -67,23 +73,19 @@ def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_p
         print(f"Error parsing URL: {e}")
         raise e
 
-    existing_ids = load_existing_ids(output_path)
-    if existing_ids:
-        print(f"Loaded {len(existing_ids)} existing IDs from {output_path}")
-
     page = create_browser(headless=quiet)
     print("Browser initialized.")
 
     # Navigate to the specified URL
     navigate_to_a_page(page, url, wait_selector="script[type='application/ld+json']", timeout=5)
 
-    all_listings = set(existing_ids)
+    all_listings: set[str] = set()
     for i in range(max_pages):
         print(f"Page {i + 1}")
 
         new_ids = set(collect_ids_from_page(page))
-        ids_to_add = new_ids - existing_ids
-        all_listings.update(ids_to_add)
+        ids_to_add = new_ids - all_listings
+        all_listings.update(new_ids)
 
         print(f"  Found {len(ids_to_add)} new IDs on this page")
         print(f"  Total unique IDs so far: {len(all_listings)}")
@@ -102,10 +104,15 @@ def main(url: str = URL, output_path: str = "cache/newhouse_listings.jbl", max_p
         # Wait for new page content
         wait_for_page_content(page, "script[type='application/ld+json']", timeout=5)
 
-    joblib.dump(list(all_listings), output_path)
-    print(f"Done! Collected {len(all_listings)} entries in total ({len(existing_ids)} existing + {len(all_listings - existing_ids)} new).")
+    id_list = list(all_listings)
+
+    if output_path:
+        joblib.dump(id_list, output_path)
+
+    print(f"Done! Collected {len(id_list)} entries in total.")
 
     page.quit()
+    return id_list
 
 
 if __name__ == "__main__":
