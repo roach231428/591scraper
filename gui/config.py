@@ -45,6 +45,11 @@ ACCENT_ORANGE = "#FF6B00"    # 591 brand orange
 ACCENT_RED = "#F85149"       # Stop/error red
 SUCCESS_GREEN = "#3FB950"    # Success green
 
+# Leju (樂居) brand colors, taken from leju.com.tw main visual:
+# deep teal header background + yellow "找房" call-to-action button.
+ACCENT_TEAL = "#0F4C5C"      # leju brand deep teal
+ACCENT_YELLOW = "#F5B700"    # leju brand yellow (找房 button)
+
 # Theme definitions
 THEMES: Dict[str, dict] = {
     "dark": {
@@ -79,6 +84,13 @@ THEMES: Dict[str, dict] = {
     },
 }
 
+# Leju-themed variants: same neutral structure as THEMES but with the
+# leju.com.tw deep-teal / yellow accent palette applied.
+THEMES_LEJU: Dict[str, dict] = {
+    key: {**theme, "border_focus": ACCENT_TEAL, "status_running": ACCENT_TEAL}
+    for key, theme in THEMES.items()
+}
+
 
 # ==========================================================
 # Theme Manager
@@ -87,9 +99,11 @@ THEMES: Dict[str, dict] = {
 class ThemeManager:
     """Manages application theme state and color token retrieval."""
 
-    def __init__(self, page: ft.Page, initial_theme: str = "system"):
+    def __init__(self, page: ft.Page, initial_theme: str = "system",
+                 themes: Dict[str, dict] | None = None):
         self.page = page
         self._theme_value = initial_theme  # 'dark', 'light', or 'system'
+        self._themes = themes or THEMES
 
     @property
     def value(self) -> str:
@@ -124,7 +138,7 @@ class ThemeManager:
             Dictionary of color tokens including accent colors.
         """
         theme = "dark" if self.is_dark() else "light"
-        base = THEMES[theme]
+        base = self._themes[theme]
         return {
             "bg_primary": base["bg_primary"],
             "bg_surface": base["bg_surface"],
