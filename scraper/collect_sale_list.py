@@ -4,6 +4,9 @@ This script navigates to a specified 591.com.tw sale listing page,
 extracts listing IDs, and saves them to a joblib file.
 It supports pagination to collect IDs from multiple pages.
 
+The total number of listings is read from the page so the total page count can be
+computed up front.
+
 Environment Variables:
     X591SaleURL: The base URL for the 591.com.tw sale listings. This URL
                  must contain a 'region' query parameter.
@@ -12,6 +15,7 @@ Functions:
     main: The main function to execute the listing collection process.
 """
 
+import math
 import os
 import random
 import time
@@ -22,7 +26,7 @@ import joblib
 from DrissionPage import ChromiumPage
 
 from utils.browser import create_browser, navigate_to_a_page
-from utils.pagination import build_next_url_by_first_row, wait_for_page_content
+from utils.pagination import build_next_url_by_first_row, get_total_count, wait_for_page_content
 
 URL = os.environ.get("X591SaleURL", "")
 
@@ -85,9 +89,22 @@ def main(url: str = URL, output_path: str = "cache/sale_listings.jbl", max_pages
     # Navigate to the specified URL
     navigate_to_a_page(page, url, wait_selector=".ware-item", timeout=5)
 
+    # Discover the total listing count from the page (like leju's meta.total)
+    # and derive the total number of pages. The count element lives in
+    # .ware-count-box span.number".
+    page_size = 30
+    total_count = get_total_count(page)
+    if total_count is not None:
+        last_page = max(1, math.ceil(total_count / page_size))
+        print(f"Total listings found: {total_count} (total pages: {last_page})")
+    else:
+        last_page = max_pages
+        print("Warning: total count not found on page, falling back to max_pages limit.")
+
     all_listings: set[str] = set()
     for i in range(max_pages):
-        print(f"Page {i + 1}")
+        page_no = i + 1
+        print(f"Page {page_no}/{last_page}")
 
         new_ids = extract_ids_from_ware_items(page)
         ids_to_add = new_ids - all_listings
@@ -96,18 +113,23 @@ def main(url: str = URL, output_path: str = "cache/sale_listings.jbl", max_pages
         print(f"  Found {len(ids_to_add)} new IDs on this page")
         print(f"  Total unique IDs so far: {len(all_listings)}")
 
+        if page_no >= last_page:
+            print("Reached last page. Exiting...")
+            break
+
         if i == max_pages - 1:
             print("Reached maximum pages. Exiting...")
             break
 
-        # Check if there are more items by looking at current page count
-        ware_items_count = len(page.eles("css:.ware-item"))
-        if ware_items_count < 10:  # If less than 10 items, probably last page
-            print("No more pages to scrape. Exiting...")
-            break
+        # Fallback stop when total count is unknown: few items means last page
+        if total_count is None:
+            ware_items_count = len(page.eles("css:.ware-item"))
+            if ware_items_count < 10:  # If less than 10 items, probably last page
+                print("No more pages to scrape. Exiting...")
+                break
         
         # Pagination via URL parameter 'firstRow'
-        next_url = build_next_url_by_first_row(page.url, page_size=30)
+        next_url = build_next_url_by_first_row(page.url, page_size=page_size)
         
         print(f"  Navigating to page with firstRow={int(parse_qs(urlparse(next_url).query).get('firstRow', ['0'])[0])}")
         page.get(next_url)
