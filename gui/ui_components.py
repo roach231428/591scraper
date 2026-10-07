@@ -24,7 +24,7 @@ class ModeDropdown(ft.Container):
         self.dropdown = ft.Dropdown(
             label="模式選擇",
             options=[ft.dropdown.Option(k) for k in MODES.keys()],
-            value="租屋",
+            value="591租屋",
             expand=True,
             color=None,  # Will be set by apply_theme
             label_style=None,
@@ -250,9 +250,14 @@ class PathField(ft.Container):
 
 
 class QuietCheckbox(ft.Container):
-    """Quiet mode checkbox."""
+    """Quiet mode checkbox.
+
+    Some modes (e.g. leju) do not support headless scraping; for those
+    the checkbox is disabled and forced off via ``set_enabled(False)``.
+    """
 
     def __init__(self):
+        self._enabled = True
         self.checkbox = ft.Checkbox(
             label="靜默模式 (不開啟瀏覽器)",
             value=False,
@@ -268,8 +273,22 @@ class QuietCheckbox(ft.Container):
     def value(self):
         return self.checkbox.value
 
+    def set_enabled(self, enabled: bool):
+        """Enable the checkbox, or disable + uncheck it."""
+        self._enabled = enabled
+        self.checkbox.disabled = not enabled
+        if not enabled:
+            self.checkbox.value = False
+
     def apply_theme(self, colors):
-        self.checkbox.label_style = ft.TextStyle(color=colors["text_secondary"])
+        self.checkbox.label_style = ft.TextStyle(
+            color=(
+                colors["text_secondary"]
+                if self._enabled
+                else colors["text_muted"]
+            )
+        )
+        self.checkbox.active_color = colors["border_focus"]
 
 
 # ==========================================================
@@ -362,6 +381,9 @@ class StatusIndicator(ft.Container):
         self.status_text.color = colors["status_idle"]
         self.phase_label.color = colors["text_secondary"]
         self.progress_bar.bgcolor = colors["border_subtle"]
+        # Follow the active brand palette (591 orange / leju teal).
+        self.loading_spinner.color = colors["status_running"]
+        self.progress_bar.color = colors["status_running"]
 
 
 # ==========================================================
@@ -441,6 +463,11 @@ class ActionButtons(ft.Row):
 
     def apply_theme(self, colors):
         self.open_result_button.style.color = colors["text_secondary"]
+
+    def apply_brand(self, brand):
+        """Re-skin the start button with the given brand palette."""
+        self.start_button.bgcolor = brand["accent"]
+        self.start_button.color = brand["accent_text"]
 
 
 # ==========================================================

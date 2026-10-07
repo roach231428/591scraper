@@ -1,19 +1,23 @@
-"""Flet-based GUI for 591.com.tw scraper.
+"""Flet-based GUI for the 591 / leju property scrapers.
 
-This application provides a graphical interface for running the 591 scraper
-collect and fetch workflows. It supports three modes:
-- Rent (租屋): Rental listings
-- Second-hand (中古屋): Second-hand property listings
+This application provides a single graphical interface for running the
+collect and fetch workflows of every supported scraper. The mode
+dropdown switches both the target scripts and the brand visuals:
+
+- 租屋 (591): Rental listings
+- 中古屋 (591): Second-hand property listings
+- 新建案 (591): New-house listings
+- 樂居 (leju.com.tw): Second-hand sale listings
 
 The app allows users to:
-- Select the scraping mode
+- Select the scraping mode (brand palette follows the selection)
 - Configure URL, max pages, output path
 - Toggle quiet mode (headless browser)
 - Run collect and fetch workflows
 - Monitor progress in real-time
 
 Module Structure:
-    config.py       - Mode configuration and design tokens
+    config.py       - Mode/brand configuration and design tokens
     logger.py       - Queue-based logging infrastructure
     scraper_engine.py - Script execution engine
     ui_components.py - Reusable UI components
@@ -26,7 +30,7 @@ from pathlib import Path
 
 import flet as ft
 
-from gui.config import ThemeManager, MODES
+from gui.config import ThemeManager, MODES, BRANDS
 from gui.logger import setup_logger, LogConsoleManager
 from gui.scraper_engine import ScraperEngine
 from gui.ui_components import NotificationHelper
@@ -114,7 +118,7 @@ class ScraperApp:
 
     def _setup_page(self):
         """Configure page properties."""
-        self.page.title = "591 房產爬蟲工具"
+        self.page.title = BRANDS["591"]["title"]
         self.page.window.width = 1200
         self.page.window.height = 800
         self.page.padding = ft.Padding.only(top=0, left=0, right=0, bottom=0)
@@ -234,7 +238,7 @@ class ScraperApp:
                 error_details = traceback.format_exc()
                 self._log(f"執行錯誤: {error_details}")
 
-                def show_error():
+                def show_error(ex=ex):
                     self.notification_helper.show_error(
                         "執行錯誤",
                         f"{type(ex).__name__}: {str(ex)}"
@@ -264,9 +268,27 @@ class ScraperApp:
         self.page.update()
 
     def _on_mode_change(self, e):
-        """Handle mode dropdown change."""
+        """Handle mode dropdown change.
+
+        Switching the mode also switches the brand: the theme palette,
+        header branding, accent colors and window title all follow the
+        selected scraper (591 vs leju).
+        """
         mode = self.config_panel.mode_dropdown.value
         self.config_panel.update_paths_for_mode(mode)
+
+        brand = BRANDS[MODES[mode]["brand"]]
+        self.theme_manager.set_themes(brand["themes"])
+        colors = self.theme_manager.get_colors()
+
+        self.page.title = brand["title"]
+        self.page.bgcolor = colors["bg_primary"]
+        self.page.theme_mode = self.theme_manager.get_theme_mode()
+
+        self.main_layout.apply_brand(brand)
+        self.main_layout.apply_theme(colors)
+        self.log_console.update_log_colors()
+
         self.page.update()
 
     def _on_page_count_change(self):

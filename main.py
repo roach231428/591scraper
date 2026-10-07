@@ -12,7 +12,7 @@ project_root = Path(__file__).parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from gui.app_leju import app
+from gui.app import app
 
 if __name__ == "__main__":
     ft.run(app)
