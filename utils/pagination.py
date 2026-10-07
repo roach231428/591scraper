@@ -11,6 +11,26 @@ from urllib.parse import parse_qs, urlencode, urlunparse, urlparse
 from DrissionPage import ChromiumPage
 
 
+def get_total_count(page: ChromiumPage) -> int | None:
+    """Extract the total listing count shown on a 591 listing page.
+    
+    The count is rendered in ``.ware-count-box span.number``.
+    
+    Args:
+        page: DrissionPage page instance on a 591 listing page.
+        
+    Returns:
+        Total listing count as int, or None if the element is not found.
+    """
+    el = page.ele("css:.ware-count-box span.number", timeout=5)
+    if el is None:
+        return None
+    text = (el.text or "").replace(",", "").strip()
+    if text.isdigit():
+        return int(text)
+    return None
+
+
 def build_next_url_by_first_row(current_url: str, page_size: int = 30) -> str:
     """Build the next page URL by incrementing the 'firstRow' query parameter.
     
