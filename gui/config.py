@@ -15,23 +15,39 @@ from typing import Dict
 # ==========================================================
 
 MODES: Dict[str, dict] = {
-    "租屋": {
+    "591租屋": {
         "collect_script": "collect_rent_list.py",
         "fetch_script": "fetch_rent_info.py",
         "url_placeholder": "https://rent.591.com.tw/...",
         "result_path": "cache/rent_results.csv",
+        "brand": "591",
+        "allow_quiet": True,
     },
-    "中古屋": {
+    "591中古屋": {
         "collect_script": "collect_sale_list.py",
         "fetch_script": "fetch_sale_info.py",
         "url_placeholder": "https://sale.591.com.tw/...",
         "result_path": "cache/sale_results.csv",
+        "brand": "591",
+        "allow_quiet": True,
     },
-    "新建案": {
+    "591新建案": {
         "collect_script": "collect_newhouse_list.py",
         "fetch_script": "fetch_newhouse_info.py",
         "url_placeholder": "https://newhouse.591.com.tw/...",
         "result_path": "cache/newhouse_results.csv",
+        "brand": "591",
+        "allow_quiet": True,
+    },
+    "樂居": {
+        "collect_script": "collect_leju_list.py",
+        "fetch_script": "fetch_leju_info.py",
+        "url_placeholder": "https://www.leju.com.tw/object_list?...",
+        "result_path": "cache/leju_results.csv",
+        "brand": "leju",
+        # leju scrapers do not support headless mode: the quiet option
+        # is disabled (and forced off) while this mode is selected.
+        "allow_quiet": False,
     },
 }
 
@@ -44,6 +60,11 @@ MODES: Dict[str, dict] = {
 ACCENT_ORANGE = "#FF6B00"    # 591 brand orange
 ACCENT_RED = "#F85149"       # Stop/error red
 SUCCESS_GREEN = "#3FB950"    # Success green
+
+# Leju (樂居) brand colors, taken from leju.com.tw main visual:
+# deep teal header background + yellow "找房" call-to-action button.
+ACCENT_TEAL = "#0F4C5C"      # leju brand deep teal
+ACCENT_YELLOW = "#F5B700"    # leju brand yellow (找房 button)
 
 # Theme definitions
 THEMES: Dict[str, dict] = {
@@ -79,6 +100,43 @@ THEMES: Dict[str, dict] = {
     },
 }
 
+# Leju-themed variants: same neutral structure as THEMES but with the
+# leju.com.tw deep-teal / yellow accent palette applied.
+THEMES_LEJU: Dict[str, dict] = {
+    key: {**theme, "border_focus": ACCENT_TEAL, "status_running": ACCENT_TEAL}
+    for key, theme in THEMES.items()
+}
+
+
+# ==========================================================
+# Brand Configuration
+# ==========================================================
+
+# Each scraper mode belongs to a brand; switching the mode dropdown also
+# switches the brand visuals (header, accent colors, theme palette).
+BRANDS: Dict[str, dict] = {
+    "591": {
+        "title": "591 房產爬蟲工具",
+        "subtitle": None,
+        "badge": "591",
+        "accent": ACCENT_ORANGE,
+        "accent_text": "#FFFFFF",       # start-button text color
+        "badge_text": ACCENT_ORANGE,
+        "header_bg": None,              # None = follow the active theme
+        "themes": THEMES,
+    },
+    "leju": {
+        "title": "樂居 房產爬蟲工具",
+        "subtitle": "leju.com.tw 實價登錄 · 中古屋",
+        "badge": "LEJU",
+        "accent": ACCENT_YELLOW,
+        "accent_text": ACCENT_TEAL,
+        "badge_text": ACCENT_TEAL,
+        "header_bg": ACCENT_TEAL,       # fixed deep-teal header
+        "themes": THEMES_LEJU,
+    },
+}
+
 
 # ==========================================================
 # Theme Manager
@@ -87,9 +145,15 @@ THEMES: Dict[str, dict] = {
 class ThemeManager:
     """Manages application theme state and color token retrieval."""
 
-    def __init__(self, page: ft.Page, initial_theme: str = "system"):
+    def __init__(self, page: ft.Page, initial_theme: str = "system",
+                 themes: Dict[str, dict] | None = None):
         self.page = page
         self._theme_value = initial_theme  # 'dark', 'light', or 'system'
+        self._themes = themes or THEMES
+
+    def set_themes(self, themes: Dict[str, dict]):
+        """Swap the active theme palette (e.g. when switching brands)."""
+        self._themes = themes
 
     @property
     def value(self) -> str:
@@ -124,7 +188,7 @@ class ThemeManager:
             Dictionary of color tokens including accent colors.
         """
         theme = "dark" if self.is_dark() else "light"
-        base = THEMES[theme]
+        base = self._themes[theme]
         return {
             "bg_primary": base["bg_primary"],
             "bg_surface": base["bg_surface"],

@@ -10,7 +10,7 @@ This module provides:
 import flet as ft
 from typing import Dict
 
-from gui.config import MODES
+from gui.config import MODES, BRANDS
 from gui.ui_components import (
     ModeDropdown,
     UrlField,
@@ -28,35 +28,59 @@ from gui.logger import LogConsoleManager
 # ==========================================================
 
 class Header(ft.Container):
-    """Application header with logo and theme selector."""
+    """Application header with logo, brand badge and theme selector.
 
-    def __init__(self, theme_manager, on_theme_change=None):
+    The header re-skins itself when the scraper mode (and therefore the
+    brand) changes: 591 modes follow the active theme with an orange
+    accent, while the leju mode uses the fixed deep-teal / yellow
+    leju.com.tw branding.
+    """
+
+    def __init__(self, theme_manager, brand=None, on_theme_change=None):
         self.theme_manager = theme_manager
         self.colors = theme_manager.get_colors()
+        self.brand = brand or BRANDS["591"]
+
+        on_header = self.brand["header_bg"] is not None
 
         self.logo_icon = ft.Icon(
             ft.Icons.HOME,
             size=20,
-            color=self.colors["accent_orange"],
+            color=self.brand["accent"],
         )
 
         self.logo_icon_container = ft.Container(
             content=self.logo_icon,
             padding=6,
-            bgcolor=self.colors["accent_orange"] + "15",
+            bgcolor=self.brand["accent"] + ("25" if on_header else "15"),
             border_radius=4,
         )
 
         self.logo_title = ft.Text(
-            "591 房產爬蟲工具",
+            self.brand["title"],
             size=16,
             weight=ft.FontWeight.W_600,
-            color=self.colors["text_primary"],
+            color=ft.Colors.WHITE if on_header else self.colors["text_primary"],
+        )
+
+        self.logo_subtitle = ft.Text(
+            self.brand["subtitle"] or "",
+            size=11,
+            color=ft.Colors.with_opacity(0.75, ft.Colors.WHITE),
+            visible=self.brand["subtitle"] is not None,
         )
 
         self.theme_dropdown = self._build_theme_dropdown(
             on_theme_change
         )
+
+        self._accent_badge = ft.Text(
+            self.brand["badge"],
+            size=8,
+            color=self.brand["badge_text"],
+            weight=ft.FontWeight.W_700,
+        )
+        self._accent_bar = None  # built in _build_accent_line()
 
         self.logo_container = self._build_logo()
         content = self._build_content()
@@ -69,7 +93,7 @@ class Header(ft.Container):
                 right=24,
                 bottom=0,
             ),
-            bgcolor=self.colors["bg_primary"],
+            bgcolor=self.brand["header_bg"] or self.colors["bg_primary"],
         )
 
     def _build_theme_dropdown(self, on_theme_change=None) -> ft.Dropdown:
@@ -101,6 +125,7 @@ class Header(ft.Container):
                     ft.Column(
                         [
                             self.logo_title,
+                            self.logo_subtitle,
                         ],
                         spacing=0,
                         tight=True,
@@ -138,54 +163,78 @@ class Header(ft.Container):
         )
 
     def _build_accent_line(self) -> ft.Container:
-        """Create the orange accent line."""
-        return ft.Container(
-            content=ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Container(expand=1),
-                        ft.Container(
-                            content=ft.Text(
-                                "591",
-                                size=8,
-                                color=self.colors["accent_orange"],
-                                weight=ft.FontWeight.W_700,
-                            ),
-                            padding=ft.Padding.only(
-                                left=4,
-                                right=4,
-                                top=1,
-                                bottom=1,
-                            ),
+        """Create the brand-colored accent line."""
+        self._accent_bar = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(expand=1),
+                    ft.Container(
+                        content=self._accent_badge,
+                        padding=ft.Padding.only(
+                            left=4,
+                            right=4,
+                            top=1,
+                            bottom=1,
                         ),
-                        ft.Container(expand=3),
-                    ],
-                ),
-                bgcolor=self.colors["accent_orange"],
+                    ),
+                    ft.Container(expand=3),
+                ],
             ),
+            bgcolor=self.brand["accent"],
+        )
+        return ft.Container(
+            content=self._accent_bar,
             height=3,
             expand=False,
         )
 
+    def apply_brand(self, brand):
+        """Switch the header to a different brand (591 / leju)."""
+        self.brand = brand
+        self.logo_title.value = brand["title"]
+        self.logo_subtitle.value = brand["subtitle"] or ""
+        self.logo_subtitle.visible = brand["subtitle"] is not None
+        self._accent_bar.bgcolor = brand["accent"]
+        self._accent_badge.value = brand["badge"]
+        self._accent_badge.color = brand["badge_text"]
+        self.apply_theme(self.colors)
+
     def apply_theme(self, colors):
-        """Apply the given theme colors."""
+        """Apply the given theme colors (respecting the active brand)."""
         self.colors = colors
+        brand = self.brand
+        on_header = brand["header_bg"] is not None
 
-        self.bgcolor = colors["bg_primary"]
+        self.bgcolor = brand["header_bg"] or colors["bg_primary"]
 
-        self.logo_icon.color = colors["accent_orange"]
+        self.logo_icon.color = brand["accent"]
         self.logo_icon_container.bgcolor = (
-            colors["accent_orange"] + "15"
+            brand["accent"] + ("25" if on_header else "15")
         )
-        self.logo_title.color = colors["text_primary"]
+        self.logo_title.color = (
+            ft.Colors.WHITE if on_header else colors["text_primary"]
+        )
+        self.logo_subtitle.color = ft.Colors.with_opacity(
+            0.75, ft.Colors.WHITE
+        )
 
-        self.theme_dropdown.color = colors["text_primary"]
-        self.theme_dropdown.label_style = ft.TextStyle(
-            color=colors["text_secondary"]
-        )
-        self.theme_dropdown.hint_style = ft.TextStyle(
-            color=colors["text_muted"]
-        )
+        if on_header:
+            # Fixed dark header: keep the dropdown text light.
+            self.theme_dropdown.color = ft.Colors.WHITE
+            self.theme_dropdown.label_style = ft.TextStyle(
+                color=ft.Colors.with_opacity(0.8, ft.Colors.WHITE)
+            )
+            self.theme_dropdown.hint_style = ft.TextStyle(
+                color=ft.Colors.with_opacity(0.6, ft.Colors.WHITE)
+            )
+        else:
+            self.theme_dropdown.color = colors["text_primary"]
+            self.theme_dropdown.label_style = ft.TextStyle(
+                color=colors["text_secondary"]
+            )
+            self.theme_dropdown.hint_style = ft.TextStyle(
+                color=colors["text_muted"]
+            )
 
 
 # ==========================================================
@@ -334,6 +383,9 @@ class ConfigPanel(ft.Column):
 
         self.url_field.hint_text = config["url_placeholder"]
         self.result_path_field.value = config["result_path"]
+        # Modes that do not support headless scraping (e.g. leju)
+        # disable + uncheck the quiet option.
+        self.quiet_checkbox.set_enabled(config.get("allow_quiet", True))
 
     def get_config(self) -> Dict:
         mode = self.mode_dropdown.value
@@ -344,7 +396,10 @@ class ConfigPanel(ft.Column):
             url=self.url_field.value,
             max_pages=self._get_max_pages(),
             result_path=self.result_path_field.value,
-            quiet=self.quiet_checkbox.value,
+            quiet=(
+                self.quiet_checkbox.value
+                and config.get("allow_quiet", True)
+            ),
         )
 
         return config
@@ -531,6 +586,10 @@ class ExecutionPanel(ft.Column):
     # Theme
     # ======================================================
 
+    def apply_brand(self, brand):
+        """Re-skin brand-specific controls (e.g. the start button)."""
+        self.action_buttons.apply_brand(brand)
+
     def apply_theme(self, colors):
         """Apply the given theme colors to all components."""
 
@@ -608,6 +667,11 @@ class MainLayout(ft.Column):
         self._header = header
         self._config_panel = config_panel
         self._execution_panel = execution_panel
+
+    def apply_brand(self, brand):
+        """Switch the whole layout to a different brand palette."""
+        self._header.apply_brand(brand)
+        self._execution_panel.apply_brand(brand)
 
     def apply_theme(self, colors):
         """Apply current theme to all components."""

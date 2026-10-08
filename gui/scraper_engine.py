@@ -23,17 +23,21 @@ def _get_script_functions():
     from scraper.collect_sale_list import main as collect_sale_main
     from scraper.collect_newhouse_list import main as collect_newhouse_main
     from scraper.collect_rent_list import main as collect_rent_main
+    from scraper.collect_leju_list import main as collect_leju_main
     from scraper.fetch_sale_info import main as fetch_sale_main
     from scraper.fetch_rent_info import main as fetch_rent_main
     from scraper.fetch_newhouse_info import main as fetch_newhouse_main
+    from scraper.fetch_leju_info import main as fetch_leju_main
 
     return {
         "collect_sale_list.py": collect_sale_main,
         "collect_newhouse_list.py": collect_newhouse_main,
         "collect_rent_list.py": collect_rent_main,
+        "collect_leju_list.py": collect_leju_main,
         "fetch_sale_info.py": fetch_sale_main,
         "fetch_rent_info.py": fetch_rent_main,
         "fetch_newhouse_info.py": fetch_newhouse_main,
+        "fetch_leju_info.py": fetch_leju_main,
     }
 
 
