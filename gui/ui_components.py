@@ -394,7 +394,7 @@ class ActionButtons(ft.Row):
     """Action buttons row (Start, Stop, Open Result)."""
 
     def __init__(self, on_start=None, on_stop=None, on_open_result=None):
-        self.start_button = ft.ElevatedButton(
+        self.start_button = ft.FilledButton(
             content=ft.Row(
                 [
                     ft.Icon(ft.Icons.PLAY_ARROW, size=18),
@@ -411,7 +411,7 @@ class ActionButtons(ft.Row):
                 shape=ft.RoundedRectangleBorder(radius=4),
             ),
         )
-        self.stop_button = ft.ElevatedButton(
+        self.stop_button = ft.FilledButton(
             content=ft.Row(
                 [
                     ft.Icon(ft.Icons.STOP, size=18),
